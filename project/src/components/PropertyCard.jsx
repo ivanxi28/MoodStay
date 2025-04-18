@@ -1,8 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { MapPin, Star, Users, Calendar, Wifi, Wind, Utensils, Car, Droplet, Flame, Leaf, Coffee } from 'lucide-react';
+import { useAppContext } from '../context/AppContext';
 
 function PropertyCard({ property }) {
+  const { fetchReviews } = useAppContext();
+  const [averageRating, setAverageRating] = useState(property?.rating || 0);
+  const [reviewCount, setReviewCount] = useState(property?.reviews || 0);
+
+  // Fetch reviews and calculate average rating
+  useEffect(() => {
+    const getReviewsAndCalculateAverage = async () => {
+      try {
+        if (!property.id) return;
+        
+        const reviews = await fetchReviews(property.id);
+        
+        // Calculate number of reviews
+        const count = reviews.length;
+        
+        // Calculate average rating
+        let sum = 0;
+        if (count > 0) {
+          sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+          setAverageRating((sum / count).toFixed(1));
+          setReviewCount(count);
+        } else {
+          setReviewCount(0);
+        }
+        
+      } catch (error) {
+        console.error('Error getting accommodation reviews:', error);
+        // Keep default values in case of error
+        setReviewCount(0);
+      }
+    };
+    
+    getReviewsAndCalculateAverage();
+  }, [property.id, fetchReviews]);
+
   // Format location from city and country
   const location = property && property.city ? `${property.city}, ${property.country}` : 'Ubicación no disponible';
   
@@ -84,10 +120,8 @@ function PropertyCard({ property }) {
         <div className="flex items-center justify-between border-t pt-4">
           <div className="flex items-center">
             <Star className="h-4 w-4 text-yellow-400 mr-1" />
-            <span className="font-semibold">{property.rating || '4.8'}</span>
-            {property.reviews && (
-              <span className="text-gray-500 ml-1">({property.reviews} reseñas)</span>
-            )}
+            <span className="font-semibold">{averageRating}</span>
+            <span className="text-gray-500 ml-1">({reviewCount} reseñas)</span>
           </div>
           <div className="flex items-center">
             <span className="font-bold text-lg text-gray-900 mr-1">{property.pricePerNight}€</span>

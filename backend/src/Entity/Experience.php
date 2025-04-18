@@ -3,6 +3,8 @@
 namespace App\Entity;
 
 use App\Repository\ExperienceRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -197,5 +199,59 @@ class Experience
     public function getUpdatedAt(): ?\DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    #[ORM\OneToMany(mappedBy: 'experience', targetEntity: Image::class, cascade: ['persist', 'remove'])]
+    private Collection $images;
+
+    public function __construct()
+    {
+        $this->images = new ArrayCollection();
+    }
+
+    /**
+     * @return Collection<int, Image>
+     */
+    public function getImages(): Collection
+    {
+        return $this->images;
+    }
+
+    public function addImage(Image $image): self
+    {
+        if (!$this->images->contains($image)) {
+            $this->images->add($image);
+            $image->setExperience($this);
+        }
+
+        return $this;
+    }
+
+    public function removeImage(Image $image): self
+    {
+        if ($this->images->removeElement($image)) {
+            // set the owning side to null (unless already changed)
+            if ($image->getExperience() === $this) {
+                $image->setExperience(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function getFeaturedImage(): ?Image
+    {
+        foreach ($this->images as $image) {
+            if ($image->isFeatured()) {
+                return $image;
+            }
+        }
+        
+        // Si no hay imagen destacada, devolver la primera
+        if (!$this->images->isEmpty()) {
+            return $this->images->first();
+        }
+        
+        return null;
     }
 }

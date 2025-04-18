@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { CheckCircle, Calendar, Home, CreditCard, Users, MapPin } from 'lucide-react';
-import { useAppContext } from '../context/AppContext';
+import { CheckCircle, Calendar, Home, CreditCard, Users } from 'lucide-react';
 
 function PaymentConfirmation() {
   const location = useLocation();
@@ -9,35 +8,11 @@ function PaymentConfirmation() {
     bookingId, 
     amount, 
     accommodationId, 
-    experienceId,
     checkInDate, 
     checkOutDate, 
     rooms, 
     cardLast4 
   } = location.state || {};
-
-  const { fetchAccommodation, fetchExperience } = useAppContext();
-  const [propertyName, setPropertyName] = useState('');
-  const [experienceName, setExperienceName] = useState('');
-
-  // Fetch property or experience details
-  useEffect(() => {
-    const fetchDetails = async () => {
-      try {
-        if (accommodationId) {
-          const data = await fetchAccommodation(accommodationId);
-          setPropertyName(data?.title || 'Alojamiento');
-        } else if (experienceId) {
-          const data = await fetchExperience(experienceId);
-          setExperienceName(data?.title || 'Experiencia');
-        }
-      } catch (err) {
-        console.error('Error fetching details:', err);
-      }
-    };
-
-    fetchDetails();
-  }, [accommodationId, experienceId, fetchAccommodation, fetchExperience]);
 
   // Format dates for display
   const formatDate = (dateString) => {
@@ -68,43 +43,27 @@ function PaymentConfirmation() {
                 <Calendar className="h-5 w-5 text-gray-500 mr-3 mt-0.5" />
                 <div>
                   <p className="font-medium text-gray-900">Fechas</p>
-                  {accommodationId ? (
-                    <p className="text-gray-600">
-                      {formatDate(checkInDate)} - {formatDate(checkOutDate)}
-                    </p>
-                  ) : (
-                    <p className="text-gray-600">
-                      {formatDate(checkInDate)}
-                    </p>
-                  )}
+                  <p className="text-gray-600">
+                    {formatDate(checkInDate)} - {formatDate(checkOutDate)}
+                  </p>
                 </div>
               </div>
               
               <div className="flex items-start">
-                {accommodationId ? (
-                  <Home className="h-5 w-5 text-gray-500 mr-3 mt-0.5" />
-                ) : (
-                  <MapPin className="h-5 w-5 text-gray-500 mr-3 mt-0.5" />
-                )}
+                <Home className="h-5 w-5 text-gray-500 mr-3 mt-0.5" />
                 <div>
-                  <p className="font-medium text-gray-900">
-                    {accommodationId ? 'Alojamiento' : 'Experiencia'}
-                  </p>
-                  <p className="text-gray-600">
-                    {accommodationId ? propertyName : experienceName}
-                  </p>
+                  <p className="font-medium text-gray-900">Alojamiento</p>
+                  <p className="text-gray-600">ID: {accommodationId}</p>
                 </div>
               </div>
               
-              {accommodationId && (
-                <div className="flex items-start">
-                  <Users className="h-5 w-5 text-gray-500 mr-3 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-gray-900">Habitaciones</p>
-                    <p className="text-gray-600">{rooms} {parseInt(rooms) === 1 ? 'habitación' : 'habitaciones'}</p>
-                  </div>
+              <div className="flex items-start">
+                <Users className="h-5 w-5 text-gray-500 mr-3 mt-0.5" />
+                <div>
+                  <p className="font-medium text-gray-900">Habitaciones</p>
+                  <p className="text-gray-600">{rooms} {parseInt(rooms) === 1 ? 'habitación' : 'habitaciones'}</p>
                 </div>
-              )}
+              </div>
               
               <div className="flex items-start">
                 <CreditCard className="h-5 w-5 text-gray-500 mr-3 mt-0.5" />

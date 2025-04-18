@@ -208,50 +208,104 @@ class ExperienceController extends AbstractController
         
         $experiencesData = [];
         foreach ($experiences as $experience) {
-            $experiencesData[] = [
+            $experienceData = [
                 'id' => $experience->getId(),
                 'title' => $experience->getTitle(),
                 'description' => $experience->getDescription(),
                 'latitude' => $experience->getLocationLat(),
-                'longitude'=>$experience->getLocationLng(),
+                'longitude' => $experience->getLocationLng(),
                 'city' => $experience->getCity(),
                 'country' => $experience->getCountry(),
                 'price' => $experience->getPrice(),
                 'duration' => $experience->getDurationMinutes(),
                 'maxParticipants' => $experience->getMaxParticipants(),
                 'category' => $experience->getCategory(),
-                
-                // Si hay un host, también podríamos incluirlo aquí
             ];
+            
+            // Añadir imagen destacada si está disponible
+            $featuredImage = $experience->getFeaturedImage();
+            if ($featuredImage) {
+                $experienceData['featuredImage'] = $this->getParameter('app.base_url') . '/uploads/experiences/' . $featuredImage->getFilename();
+            }
+            
+            $experiencesData[] = $experienceData;
         }
 
         return $this->json($experiencesData);
     }
 
     #[Route('/api/experiences/{id}', name: 'get_experience_by_id', methods: ['GET'])]
-    public function getExperienceById(string $id): Response
+    public function getExperience(string $id): Response
     {
-        $experience = $this->experienceRepository->find($id);
-        
-        if (!$experience) {
-            return $this->json(['error' => 'Experience not found'], Response::HTTP_NOT_FOUND);
+        try {
+            $experienceId = $this->formatUuid($id);
+            $experience = $this->experienceRepository->find($experienceId);
+            
+            if (!$experience) {
+                return $this->json(['error' => 'Experience not found'], Response::HTTP_NOT_FOUND);
+            }
+            
+            $data = [
+                'id' => $experience->getId(),
+                'title' => $experience->getTitle(),
+                'description' => $experience->getDescription(),
+                'latitude' => $experience->getLocationLat(),
+                'longitude' => $experience->getLocationLng(),
+                'city' => $experience->getCity(),
+                'country' => $experience->getCountry(),
+                'price' => $experience->getPrice(),
+                'duration' => $experience->getDurationMinutes(),
+                'maxParticipants' => $experience->getMaxParticipants(),
+                'category' => $experience->getCategory(),
+            ];
+            
+            // Añadir imágenes si están disponibles
+            $images = $experience->getImages();
+            if ($images && count($images) > 0) {
+                $data['images'] = [];
+                foreach ($images as $image) {
+                    $data['images'][] = [
+                        'id' => $image->getId(),
+                        'url' => $this->getParameter('app.base_url') . '/uploads/experiences/' . $image->getFilename(),
+                        'alt' => $image->getAlt(),
+                        'isFeatured' => $image->isFeatured()
+                    ];
+                }
+                
+                // Añadir imagen destacada
+                $featuredImage = $experience->getFeaturedImage();
+                if ($featuredImage) {
+                    $data['featuredImage'] = $this->getParameter('app.base_url') . '/uploads/experiences/' . $featuredImage->getFilename();
+                }
+            }
+            
+            return $this->json($data);
+        } catch (\Exception $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    // Añade este método helper para formatear UUIDs si no lo tienes ya
+    private function formatUuid(string $id): \Symfony\Component\Uid\Uuid
+    {
+        // Remove the '0x' prefix if it exists
+        if (strpos($id, '0x') === 0) {
+            $id = substr($id, 2);
         }
         
-        $experienceData = [
-            'id' => $experience->getId(),
-            'title' => $experience->getTitle(),
-            'description' => $experience->getDescription(),
-            'latitude' => $experience->getLocationLat(),
-            'longitude' => $experience->getLocationLng(),
-            'city' => $experience->getCity(),
-            'country' => $experience->getCountry(),
-            'price' => $experience->getPrice(),
-            'duration' => $experience->getDurationMinutes(),
-            'maxParticipants' => $experience->getMaxParticipants(),
-            'category' => $experience->getCategory(),
-            // Si hay un host, también podríamos incluirlo aquí
-        ];
+        // Format the UUID string with dashes if it's a continuous string
+        if (strlen($id) == 32) {
+            $id = sprintf(
+                '%s-%s-%s-%s-%s',
+                substr($id, 0, 8),
+                substr($id, 8, 4),
+                substr($id, 12, 4),
+                substr($id, 16, 4),
+                substr($id, 20, 12)
+            );
+        }
         
-        return $this->json($experienceData);
+        // Convert the string UUID to a proper Symfony\Component\Uid\Uuid object
+        return \Symfony\Component\Uid\Uuid::fromString($id);
     }
 }

@@ -1,11 +1,12 @@
 import React, { useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Compass, Search, Map, User, Utensils } from 'lucide-react';
+import { Compass, BedDouble, Map, User, Utensils, Settings } from 'lucide-react';
 // Fix the import to match what your AuthContext file exports
-import { AuthContext } from '../context/AuthContext';
+import { AuthContext, useAuth } from '../context/AuthContext';
 
 function Navbar() {
   const { isAuthenticated } = useContext(AuthContext);
+  const { user } = useAuth(); // Add this line to get the user object
   const navigate = useNavigate();
 
   const handleProfileClick = (e) => {
@@ -29,7 +30,7 @@ function Navbar() {
           
           <div className="flex items-center space-x-4">
             <Link to="/properties" className="text-gray-600 hover:text-gray-900">
-              <Search className="h-6 w-6" />
+              <BedDouble className="h-6 w-6" />
             </Link>
             <Link to="/experiences" className="text-gray-600 hover:text-gray-900">
               <Map className="h-6 w-6" />
@@ -37,6 +38,18 @@ function Navbar() {
             <Link to="/restaurants" className="text-gray-600 hover:text-gray-900">
               <Utensils className="h-6 w-6" />
             </Link>
+            
+            {/* Add the admin panel link here */}
+            {user && user.roles.includes('ROLE_ADMIN') && (
+              <Link 
+                to="/admin" 
+                className="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium flex items-center"
+              >
+                <Settings className="h-5 w-5 mr-1" />
+                Admin
+              </Link>
+            )}
+            
             <Link 
               to="/profile" 
               className="text-gray-600 hover:text-gray-900"

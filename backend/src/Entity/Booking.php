@@ -50,6 +50,8 @@ class Booking
 
     #[ORM\Column(type: 'datetime_immutable', name: 'updated_at')]
     private ?\DateTimeImmutable $updatedAt = null;
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $notes = null;
 
     #[ORM\PrePersist]
     public function setCreatedAtValue(): void
@@ -217,6 +219,16 @@ class Booking
     public function setRestaurant(?Restaurant $restaurant): self
     {
         $this->restaurant = $restaurant;
+        return $this;
+    }
+    public function getNotes(): ?string
+    {
+        return $this->notes;
+    }
+    
+    public function setNotes(?string $notes): self
+    {
+        $this->notes = $notes;
         return $this;
     }
 }

@@ -17,6 +17,10 @@ function ExperienceDetail() {
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   
+  // Add these state variables for calculated rating
+  const [averageRating, setAverageRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+  
   // Add these missing state variables for the review form
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
@@ -40,22 +44,40 @@ function ExperienceDetail() {
   }, [id, fetchExperience]);
 
   // Fetch experience reviews
+  // Fetch experience reviews and calculate average rating
   useEffect(() => {
-    const getExperienceReviews = async () => {
-      if (!id) return;
-      
+    const getReviewsAndCalculateAverage = async () => {
       try {
+        if (!id) return;
+        
         setReviewsLoading(true);
-        const reviewsData = await fetchExperienceReviews(id);
-        setReviews(reviewsData || []);
-      } catch (err) {
-        console.error('Error fetching experience reviews:', err);
+        const reviews = await fetchExperienceReviews(id);
+        setReviews(reviews || []);
+        
+        // Calculate number of reviews
+        const count = reviews ? reviews.length : 0;
+        
+        // Calculate average rating
+        let sum = 0;
+        if (count > 0) {
+          sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+          setAverageRating((sum / count).toFixed(1));
+          setReviewCount(count);
+        } else {
+          setAverageRating(0);
+          setReviewCount(0);
+        }
+        
+      } catch (error) {
+        console.error('Error getting experience reviews:', error);
+        // Keep default values in case of error
+        setReviewCount(0);
       } finally {
         setReviewsLoading(false);
       }
     };
 
-    getExperienceReviews();
+    getReviewsAndCalculateAverage();
   }, [id, fetchExperienceReviews]);
 
   // Handle booking submission
@@ -142,9 +164,17 @@ function ExperienceDetail() {
         setExperience(result.updatedItem);
       }
       
-      // Refresh reviews
+      // Refresh reviews and recalculate average
       const updatedReviews = await fetchExperienceReviews(id);
       setReviews(updatedReviews || []);
+      
+      // Recalculate average rating
+      const count = updatedReviews ? updatedReviews.length : 0;
+      if (count > 0) {
+        const sum = updatedReviews.reduce((acc, review) => acc + review.rating, 0);
+        setAverageRating((sum / count).toFixed(1));
+        setReviewCount(count);
+      }
       
       // Reset form
       setReviewComment('');
@@ -221,8 +251,8 @@ function ExperienceDetail() {
               <div className="mx-2">•</div>
               <div className="flex items-center">
                 <Star className="h-5 w-5 text-yellow-500 mr-1" />
-                <span>{experience.rating || 4.8}</span>
-                <span className="ml-1">({reviews.length || 0} reseñas)</span>
+                <span>{averageRating}</span>
+                <span className="ml-1">({reviewCount} reseñas)</span>
               </div>
               <div className="mx-2">•</div>
               <div className="flex items-center">
@@ -244,7 +274,7 @@ function ExperienceDetail() {
                   className={`py-2 px-4 font-medium ${activeTab === 'reviews' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => setActiveTab('reviews')}
                 >
-                  Reseñas ({reviews.length})
+                  Reseñas ({reviewCount})
                 </button>
               </div>
             </div>

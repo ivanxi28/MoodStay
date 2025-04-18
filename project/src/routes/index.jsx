@@ -8,6 +8,7 @@ import Booking from '../pages/Booking';
 import Experiences from '../pages/Experiences';
 import ExperienceDetail from '../pages/ExperienceDetail';
 import Profile from '../pages/Profile';
+import AdminDashboard from '../pages/AdminDashboard';
 import RestaurantDetail from '../pages/RestaurantDetail';
 import PaymentConfirmation from '../pages/PaymentConfirmation';
 import Login from '../pages/Login';
@@ -57,6 +58,10 @@ export const router = createBrowserRouter([
       },{
         path: "payment-confirmation",
         element: <PaymentConfirmation />,
+      },
+      {
+        path:"/admin",
+        element: <AdminDashboard/>,
       },
       {
         path: "experiences/:id",

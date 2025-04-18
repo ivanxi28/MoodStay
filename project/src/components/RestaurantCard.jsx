@@ -1,8 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { MapPin, Star, Clock } from 'lucide-react';
+import { useAppContext } from '../context/AppContext';
 
 function RestaurantCard({ restaurant }) {
+  const { fetchRestaurantReviews } = useAppContext();
+  const [averageRating, setAverageRating] = useState(restaurant?.rating || 0);
+  const [reviewCount, setReviewCount] = useState(restaurant?.reviewCount || 0);
+
   // Handle missing data with defaults
   const {
     id,
@@ -12,13 +17,42 @@ function RestaurantCard({ restaurant }) {
     address = 'Address',
     city = 'City',
     country = 'Country',
-    rating = 4.5,
-    reviewCount = 0,
     cuisine = 'Mediterranean',
     priceRange, // Get price range from API
     priceLevel = '€€',
     openingHours = '12:00 - 23:00'
   } = restaurant || {};
+
+  // Fetch reviews and calculate average rating
+  useEffect(() => {
+    const getReviewsAndCalculateAverage = async () => {
+      try {
+        if (!id) return;
+        
+        const reviews = await fetchRestaurantReviews(id);
+        
+        // Calculate number of reviews
+        const count = reviews.length;
+        
+        // Calculate average rating
+        let sum = 0;
+        if (count > 0) {
+          sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+          setAverageRating((sum / count).toFixed(1));
+          setReviewCount(count);
+        } else {
+          setReviewCount(0);
+        }
+        
+      } catch (error) {
+        console.error('Error getting restaurant reviews:', error);
+        // Keep default values in case of error
+        setReviewCount(0);
+      }
+    };
+    
+    getReviewsAndCalculateAverage();
+  }, [restaurant.id, fetchRestaurantReviews]);
 
   // Use the first image from images array if available, otherwise use image property
   const displayImage = (images && images.length > 0) ? images[0] : image;
@@ -80,8 +114,8 @@ function RestaurantCard({ restaurant }) {
         
         <div className="flex items-center mb-2">
           <Star className="h-4 w-4 text-yellow-500 mr-1 flex-shrink-0" />
-          <span>{rating}</span>
-          <span className="text-gray-500 text-sm ml-1">({reviewCount || 0} reviews)</span>
+          <span>{averageRating}</span>
+          <span className="text-gray-500 text-sm ml-1">({reviewCount} reseñas)</span>
         </div>
         
         <div className="flex items-center text-gray-600 mb-2">

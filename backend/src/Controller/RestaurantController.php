@@ -89,7 +89,7 @@ class RestaurantController extends AbstractController
         
         $restaurantsData = [];
         foreach ($restaurants as $restaurant) {
-            $restaurantsData[] = [
+            $restaurantData = [
                 'id' => $restaurant->getId(),
                 'name' => $restaurant->getName(),
                 'description' => $restaurant->getDescription(),
@@ -99,8 +99,15 @@ class RestaurantController extends AbstractController
                 'cuisine' => $restaurant->getCuisine(),
                 'rating' => $restaurant->getRating(),
                 'priceRange' => $restaurant->getPriceRange(),
-                'images' => $restaurant->getImages(),
             ];
+            
+            // Añadir imagen destacada si está disponible
+            $featuredImage = $restaurant->getFeaturedImage();
+            if ($featuredImage) {
+                $restaurantData['featuredImage'] = $this->getParameter('app.base_url') . '/uploads/restaurants/' . $featuredImage->getFilename();
+            }
+            
+            $restaurantsData[] = $restaurantData;
         }
         
         return $this->json($restaurantsData);
@@ -151,9 +158,28 @@ class RestaurantController extends AbstractController
                 'rating' => $restaurant->getRating(),
                 'priceRange' => $restaurant->getPriceRange(),
                 'openingHours' => $restaurant->getOpeningHours(),
-                'images' => $restaurant->getImages(),
                 'createdAt' => $restaurant->getCreatedAt()->format('Y-m-d H:i:s'),
             ];
+            
+            // Añadir todas las imágenes si están disponibles
+            $images = $restaurant->getImages();
+            if ($images && count($images) > 0) {
+                $restaurantData['images'] = [];
+                foreach ($images as $image) {
+                    $restaurantData['images'][] = [
+                        'id' => $image->getId(),
+                        'url' => $this->getParameter('app.base_url') . '/uploads/restaurants/' . $image->getFilename(),
+                        'alt' => $image->getAlt(),
+                        'isFeatured' => $image->isFeatured()
+                    ];
+                }
+                
+                // Añadir imagen destacada
+                $featuredImage = $restaurant->getFeaturedImage();
+                if ($featuredImage) {
+                    $restaurantData['featuredImage'] = $this->getParameter('app.base_url') . '/uploads/restaurants/' . $featuredImage->getFilename();
+                }
+            }
             
             return $this->json($restaurantData);
             

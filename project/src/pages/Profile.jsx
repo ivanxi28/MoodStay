@@ -1,12 +1,14 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { User, Mail, LogOut, Home, Calendar, MapPin, Clock } from 'lucide-react';
+import { User, Mail, LogOut, Home, Calendar, MapPin, Clock, Utensils } from 'lucide-react';
 
 function Profile() {
   const { user, logout } = useContext(AuthContext);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
+  const [expandedBookingId, setExpandedBookingId] = useState(null);
   
   // Fetch user bookings
   useEffect(() => {
@@ -16,7 +18,6 @@ function Profile() {
       try {
         setLoading(true);
         const token = localStorage.getItem('token');
-        console.log('Fetching bookings for user:', user.id);
         
         // Fetch with better error handling
         const response = await fetch(`http://localhost:8000/api/users/${user.id}/bookings`, {
@@ -43,7 +44,7 @@ function Profile() {
         }
         
         const data = await response.json();
-        console.log('Bookings API response:', data);
+       
         
         // Ensure bookings is always an array
         setBookings(Array.isArray(data) ? data : []);
@@ -65,23 +66,32 @@ function Profile() {
   
   // Make sure bookings is an array before filtering
   const upcomingBookings = Array.isArray(bookings) ? bookings.filter(booking => {
+    // For restaurant bookings, use reservationDate
+    if (booking.restaurant && booking.reservationDate) {
+      const reservationDate = new Date(booking.reservationDate);
+      reservationDate.setHours(0, 0, 0, 0);
+      return reservationDate >= today;
+    }
+    
+    // For accommodation and experience bookings, use checkInDate
     if (!booking.checkInDate) return false;
     
     // Convert to date object and normalize to start of day
     const checkInDate = new Date(booking.checkInDate);
     checkInDate.setHours(0, 0, 0, 0);
     
-    // For debugging
-    console.log('Comparing dates:', {
-      checkInDate: checkInDate.toISOString(),
-      today: today.toISOString(),
-      isUpcoming: checkInDate >= today
-    });
-    
     return checkInDate >= today;
   }) : [];
   
   const completedBookings = Array.isArray(bookings) ? bookings.filter(booking => {
+    // For restaurant bookings, use reservationDate
+    if (booking.restaurant && booking.reservationDate) {
+      const reservationDate = new Date(booking.reservationDate);
+      reservationDate.setHours(0, 0, 0, 0);
+      return reservationDate < today;
+    }
+    
+    // For accommodation and experience bookings, use checkInDate
     if (!booking.checkInDate) return false;
     
     // Convert to date object and normalize to start of day
@@ -100,6 +110,44 @@ function Profile() {
   const handleLogout = () => {
     logout();
   };
+  // Add the handleCancelBooking function inside the component
+const handleCancelBooking = async (bookingId) => {
+  if (!confirm('¿Estás seguro de que deseas cancelar esta reserva?')) {
+    return;
+  }
+  
+  try {
+    setCancellingId(bookingId);
+    const token = localStorage.getItem('token');
+    
+    // Updated API endpoint
+    const response = await fetch(`http://localhost:8000/api/bookings/${bookingId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Server response:', errorText);
+      throw new Error(`Error al cancelar la reserva: ${response.status}`);
+    }
+    
+    // Remove the cancelled booking from state
+    setBookings(bookings.filter(booking => booking.id !== bookingId));
+    
+    // Show success message
+    alert('Reserva cancelada con éxito');
+    
+  } catch (err) {
+    console.error('Error cancelling booking:', err);
+    alert('No se pudo cancelar la reserva. Por favor, inténtalo de nuevo.');
+  } finally {
+    setCancellingId(null);
+  }
+};
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -157,19 +205,24 @@ function Profile() {
                     <div key={booking.id} className="flex items-start border-b pb-3 last:border-b-0">
                       {booking.accommodation ? (
                         <Home className="h-5 w-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" />
+                      ) : booking.restaurant ? (
+                        <Utensils className="h-5 w-5 text-orange-500 mr-3 mt-0.5 flex-shrink-0" />
                       ) : (
                         <Calendar className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
                       )}
                       <div>
                         <p className="font-medium">
-                          {booking.accommodation ? booking.accommodation.title : booking.experience.title}
+                          {booking.accommodation ? booking.accommodation.title : 
+                           booking.restaurant ? booking.restaurant.name : 
+                           booking.experience ? booking.experience.title : 'Reserva'}
                         </p>
                         <div className="flex items-center text-sm text-gray-500">
                           <MapPin className="h-3 w-3 mr-1" />
                           <span>
                             {booking.accommodation ? 
                               `${booking.accommodation.city}, ${booking.accommodation.country}` : 
-                              booking.experience.city}
+                              booking.restaurant ? booking.restaurant.location || 'Ubicación no disponible' :
+                              booking.experience ? booking.experience.city : 'Ubicación no disponible'}
                           </span>
                         </div>
                         <div className="flex items-center text-sm text-gray-500 mt-1">
@@ -177,9 +230,17 @@ function Profile() {
                           <span>
                             {booking.accommodation ? 
                               `${formatDate(booking.checkInDate)} - ${formatDate(booking.checkOutDate)}` : 
-                              formatDate(booking.checkInDate)}
+                              booking.restaurant && booking.reservationDate ? 
+                                `${formatDate(booking.reservationDate)} ${booking.reservationTime || ''}` :
+                              booking.checkInDate ? formatDate(booking.checkInDate) : 'Fecha no disponible'}
                           </span>
                         </div>
+                        {booking.restaurant && (
+                          <div className="flex items-center text-sm text-gray-500 mt-1">
+                            <User className="h-3 w-3 mr-1" />
+                            <span>{booking.guestCount || 2} {(booking.guestCount === 1) ? 'comensal' : 'comensales'}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -207,17 +268,23 @@ function Profile() {
               <div className="space-y-4">
                 {upcomingBookings.map(booking => (
                   <div key={booking.id} className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex justify-between items-start">
+                    <div 
+                      className="flex justify-between items-start cursor-pointer"
+                      onClick={() => setExpandedBookingId(expandedBookingId === booking.id ? null : booking.id)}
+                    >
                       <div>
                         <h3 className="font-medium text-gray-900">
-                          {booking.accommodation ? booking.accommodation.title : booking.experience.title}
+                          {booking.accommodation ? booking.accommodation.title : 
+                           booking.restaurant ? booking.restaurant.name : 
+                           booking.experience ? booking.experience.title : 'Reserva'}
                         </h3>
                         <div className="flex items-center text-sm text-gray-500 mt-1">
                           <MapPin className="h-4 w-4 mr-1" />
                           <span>
                             {booking.accommodation ? 
                               `${booking.accommodation.city}, ${booking.accommodation.country}` : 
-                              booking.experience.city}
+                              booking.restaurant ? booking.restaurant.location || 'Ubicación no disponible' :
+                              booking.experience ? booking.experience.city : 'Ubicación no disponible'}
                           </span>
                         </div>
                         <div className="flex items-center text-sm text-gray-500 mt-1">
@@ -225,21 +292,11 @@ function Profile() {
                           <span>
                             {booking.accommodation ? 
                               `${formatDate(booking.checkInDate)} - ${formatDate(booking.checkOutDate)}` : 
-                              formatDate(booking.checkInDate)}
+                              booking.restaurant && booking.reservationDate ? 
+                                `${formatDate(booking.reservationDate)} ${booking.reservationTime || ''}` :
+                              booking.checkInDate ? formatDate(booking.checkInDate) : 'Fecha no disponible'}
                           </span>
                         </div>
-                        {booking.accommodation && (
-                          <div className="flex items-center text-sm text-gray-500 mt-1">
-                            <User className="h-4 w-4 mr-1" />
-                            <span>{booking.guestCount} huéspedes • {booking.rooms} {booking.rooms === 1 ? 'habitación' : 'habitaciones'}</span>
-                          </div>
-                        )}
-                        {booking.experience && (
-                          <div className="flex items-center text-sm text-gray-500 mt-1">
-                            <User className="h-4 w-4 mr-1" />
-                            <span>{booking.guestCount} {booking.guestCount === 1 ? 'participante' : 'participantes'}</span>
-                          </div>
-                        )}
                       </div>
                       <div className="text-right">
                         <p className="font-medium text-gray-900">€{parseFloat(booking.totalPrice).toFixed(2)}</p>
@@ -250,6 +307,82 @@ function Profile() {
                         </span>
                       </div>
                     </div>
+                    
+                    {/* Expanded booking details */}
+                    {expandedBookingId === booking.id && (
+                      <div className="mt-4 border-t pt-4">
+                        <h4 className="font-medium mb-2">Detalles de la reserva</h4>
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                          <p className="text-gray-500">ID de reserva:</p>
+                          <p>{booking.id}</p>
+                          
+                          <p className="text-gray-500">Fecha de reserva:</p>
+                          <p>{formatDate(booking.createdAt || new Date())}</p>
+                          
+                          {/* Add check-in and check-out times */}
+                          {booking.accommodation ? (
+                            <>
+                              <p className="text-gray-500">Fecha de entrada:</p>
+                              <p>{booking.checkInDate }</p>
+                              
+                              <p className="text-gray-500">Fecha de salida:</p>
+                              <p>{booking.checkOutDate }</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-gray-500">Hora de entrada:</p>
+                              <p>{booking.checkInTime || booking.reservationTime || '15:00'}</p>
+                            </>
+                          )}
+                          {/* Fix the conditional rendering for notes */}
+                          {(booking.notes || 
+                            (booking.accommodation && booking.accommodation.notes) || 
+                            (booking.restaurant && booking.restaurant.notes)) ? (
+                            <>
+                              <p className="text-gray-500">Notas adicionales:</p>
+                              <p>{booking.notes || 
+                                 (booking.accommodation && booking.accommodation.notes) || 
+                                 (booking.restaurant && booking.restaurant.notes)}</p>
+                            </>
+                          ) : null}
+                          
+                          
+                          
+                          {booking.guestCount && (
+                            <>
+                              <p className="text-gray-500">Número de {booking.accommodation ? 'huéspedes' : booking.restaurant ? 'comensales' : 'participantes'}:</p>
+                              <p>{booking.guestCount}</p>
+                            </>
+                          )}
+                          
+                          {booking.accommodation && booking.rooms && booking.rooms > 0 && (
+                            <>
+                              <p className="text-gray-500">Habitaciones:</p>
+                              <p>{booking.rooms}</p>
+                            </>
+                          )}
+                          <p className="text-gray-500">Precio total:</p>
+                          <p>€{parseFloat(booking.totalPrice).toFixed(2)}</p>
+                          
+                          <p className="text-gray-500">Estado de pago:</p>
+                          <p className={booking.paymentStatus === 'paid' ? 'text-green-600' : 'text-yellow-600'}>
+                            {booking.paymentStatus === 'paid' ? 'Pagado' : 'Pendiente de pago'}
+                          </p>
+                        </div>
+                        
+                        {/* Cancel button - moved inside expanded view */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent triggering the parent onClick
+                            handleCancelBooking(booking.id);
+                          }}
+                          disabled={cancellingId === booking.id}
+                          className="text-sm text-red-600 hover:text-red-800 px-3 py-1 border border-red-200 rounded-md hover:bg-red-50"
+                        >
+                          {cancellingId === booking.id ? 'Cancelando...' : 'Cancelar reserva'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -282,6 +415,9 @@ function Profile() {
       </div>
     </div>
   );
+  
 }
+
+
 
 export default Profile;

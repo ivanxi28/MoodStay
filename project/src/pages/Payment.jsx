@@ -7,21 +7,6 @@ function Payment() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // Get data from location state
-  const { 
-    amount, 
-    accommodationId, 
-    experienceId,
-    checkInDate, 
-    checkOutDate,
-    bookingDate, // Add this to capture the date from experience bookings
-    rooms,
-    totalGuestCount,
-    numberOfParticipants, // Add this to capture participants from experience bookings
-    bookingData 
-  } = location.state || {};
-  
   const { updatePaymentStatus, createBooking } = useAppContext();
   const [cardNumber, setCardNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
@@ -29,8 +14,21 @@ function Payment() {
   const [cardName, setCardName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Get data from location state
+  const { 
+    amount, 
+    accommodationId, 
+    experienceId,
+    checkInDate, 
+    checkOutDate, 
+    rooms,
+    bookingData,
+    notes // Get the booking data passed from PropertyDetail
+  } = location.state || {};
+  
+  
 
-  // Remove the incorrect useEffect
   
   // Format card number with spaces
   const formatCardNumber = (value) => {
@@ -104,22 +102,22 @@ function Payment() {
               accommodationId: accommodationId,
               checkInDate: checkInDate,
               checkOutDate: checkOutDate,
-              totalGuestCount: totalGuestCount || 1,
+              totalGuestCount: location.state?.totalGuestCount || 1,
               rooms: rooms || 1,
-              totalPrice: amount
+              totalPrice: amount,
+              notes:notes
             };
           } else if (experienceId) {
             bookingData = {
               experienceId: experienceId,
-              numberOfParticipants: numberOfParticipants || totalGuestCount || 1,
-              bookingDate: bookingDate || checkInDate, // Use bookingDate if available, fall back to checkInDate
+              numberOfParticipants: location.state?.totalGuestCount || 1,
+              bookingDate: location.state?.checkInDate,
               totalPrice: amount
             };
           }
           
-          console.log("Final booking data being sent:", bookingData);
-          
           if (bookingData) {
+            console.log("Creating booking with data:", bookingData);
             const bookingResponse = await createBooking(bookingData);
             console.log("Booking created:", bookingResponse);
             

@@ -121,10 +121,11 @@ class BookingController extends AbstractController
             // Set both check-in and check-out dates for experience bookings
             $booking->setCheckInDate(new \DateTime($data['bookingDate']));
             $booking->setCheckOutDate(new \DateTime($data['bookingDate'])); // Same day for experiences
-            $booking->setRooms(1); // Default value for experiences
+            $booking->setRooms(0); // Default value for experiences
             $booking->setTotalPrice($experience->getPrice() * $data['numberOfParticipants']);
             $booking->setStatus('confirmed');
-            $booking->setPaymentStatus('paid'); // Add this line
+            $booking->setPaymentStatus('paid');
+            $booking->setNotes(null); // Add this line
         } elseif (isset($data['accommodationId'])) {
             // Accommodation booking logic
             if (!isset($data['checkInDate']) || !isset($data['checkOutDate']) || !isset($data['totalGuestCount'])) {
@@ -150,6 +151,7 @@ class BookingController extends AbstractController
             $booking->setRooms($data['rooms']);
             $booking->setGuestCount($data['totalGuestCount']);
             $booking->setPaymentStatus('paid');
+            $booking->setNotes($data['notes']); 
             
             // Use the total price from frontend instead of calculating it
             if (isset($data['totalPrice'])) {
@@ -189,7 +191,8 @@ class BookingController extends AbstractController
             $booking->setCheckOutDate($reservationDateTime); // Same datetime for restaurants
             $booking->setGuestCount($data['guestCount']);
             $booking->setPaymentStatus('paid');
-            $booking->setRooms(1); // Default value for restaurants (table count)
+            $booking->setRooms(0);
+            $booking->setNotes($data['notes']); // Default value for restaurants (table count)
             
             // Set price if available or use a default calculation
             if (isset($data['totalPrice'])) {
@@ -380,7 +383,10 @@ class BookingController extends AbstractController
                     'totalPrice' => $booking->getTotalPrice(),
                     'status' => $booking->getStatus(),
                     'paymentStatus' => $booking->getPaymentStatus(),
+                    'notes' => $booking->getNotes(),
                 ];
+                
+                // En el método getUserBookingsById, modifica las secciones donde se añaden los datos de accommodation, experience y restaurant:
                 
                 // Add accommodation data if present
                 if ($booking->getAccommodation()) {
@@ -392,7 +398,14 @@ class BookingController extends AbstractController
                         'city' => $accommodation->getCity(),
                         'country' => $accommodation->getCountry(),
                         'pricePerNight' => $accommodation->getPricePerNight(),
+                        
                     ];
+                    
+                    // Add featured image if available
+                    $featuredImage = $accommodation->getFeaturedImage();
+                    if ($featuredImage) {
+                        $bookingData['accommodation']['featuredImage'] = '/uploads/accommodations/' . $featuredImage->getFilename();
+                    }
                 }
                 
                 // Add experience data if present
@@ -407,6 +420,12 @@ class BookingController extends AbstractController
                         'price' => $experience->getPrice(),
                         'category' => $experience->getCategory(),
                     ];
+                    
+                    // Add featured image if available
+                    $featuredImage = $experience->getFeaturedImage();
+                    if ($featuredImage) {
+                        $bookingData['experience']['featuredImage'] = '/uploads/experiences/' . $featuredImage->getFilename();
+                    }
                 }
                 
                 // Add restaurant data if present
@@ -418,9 +437,16 @@ class BookingController extends AbstractController
                         'description' => $restaurant->getDescription(),
                         'city' => $restaurant->getCity(),
                         'country' => $restaurant->getCountry(),
-                        'averagePrice' => $restaurant->getAveragePrice(),
+                        'averagePrice' => $restaurant->getPriceRange(),
                         'cuisine' => $restaurant->getCuisine(),
+                        
                     ];
+                    
+                    // Add featured image if available
+                    $featuredImage = $restaurant->getFeaturedImage();
+                    if ($featuredImage) {
+                        $bookingData['restaurant']['featuredImage'] = '/uploads/restaurants/' . $featuredImage->getFilename();
+                    }
                 }
                 
                 $bookingsData[] = $bookingData;

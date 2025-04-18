@@ -18,7 +18,7 @@ L.Icon.Default.mergeOptions({
 
 function PropertyDetail() {
   const { id } = useParams();
-  const { fetchAccommodation, fetchReviews, createBooking, createGenericReview } = useAppContext();
+  const { fetchAccommodation, fetchReviews, createGenericReview } = useAppContext();
   const { user } = useAuth();
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -32,7 +32,12 @@ function PropertyDetail() {
   const [totalPrice, setTotalPrice] = useState(0);
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('details'); // Add this line
+  const [activeTab, setActiveTab] = useState('details');
+  const [bookingNotes, setBookingNotes] = useState(''); // Add state for booking notes
+  
+  // Add these state variables for calculated rating
+  const [averageRating, setAverageRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
   
   // Review form state - moved inside the component
   const [reviewRating, setReviewRating] = useState(5);
@@ -43,51 +48,7 @@ function PropertyDetail() {
   
   const navigate = useNavigate();
 
-  // Handle review submission - moved inside the component
-  const handleSubmitReview = async (e) => {
-    e.preventDefault();
-    
-    if (!user) {
-      setReviewError('Debes iniciar sesión para dejar una reseña');
-      return;
-    }
-    
-    try {
-      setIsSubmitting(true);
-      setReviewError(null);
-      
-      const reviewData = {
-        userId: user.id,
-        rating: reviewRating,
-        comment: reviewComment,
-        accommodationId: id
-      };
-      
-      const { review, updatedReviews } = await createGenericReview(reviewData);
-      
-      // Update reviews list if we got updated reviews back
-      if (updatedReviews) {
-        setReviews(updatedReviews);
-      }
-      
-      // Reset form
-      setReviewComment('');
-      setReviewRating(5);
-      setReviewSuccess(true);
-      
-      // Hide success message after 3 seconds
-      setTimeout(() => {
-        setReviewSuccess(false);
-      }, 3000);
-      
-    } catch (err) {
-      console.error('Error submitting review:', err);
-      setReviewError('No se pudo enviar la reseña. Por favor, inténtalo de nuevo.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
+  
   // Fetch property details
   useEffect(() => {
     const getPropertyDetails = async () => {
@@ -108,22 +69,38 @@ function PropertyDetail() {
 
   // Fetch reviews for the property
   useEffect(() => {
-    const getReviews = async () => {
-      if (!id) return;
-      
+    const getReviewsAndCalculateAverage = async () => {
       try {
+        if (!id) return;
+        
         setReviewsLoading(true);
-        const data = await fetchReviews(id);
-        setReviews(data);
-      } catch (err) {
-        console.error('Error fetching reviews:', err);
-        setReviews([]);
+        const reviews = await fetchReviews(id);
+        setReviews(reviews || []);
+        
+        // Calculate number of reviews
+        const count = reviews ? reviews.length : 0;
+        
+        // Calculate average rating
+        let sum = 0;
+        if (count > 0) {
+          sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+          setAverageRating((sum / count).toFixed(1));
+          setReviewCount(count);
+        } else {
+          setAverageRating(0);
+          setReviewCount(0);
+        }
+        
+      } catch (error) {
+        console.error('Error getting property reviews:', error);
+        // Keep default values in case of error
+        setReviewCount(0);
       } finally {
         setReviewsLoading(false);
       }
     };
 
-    getReviews();
+    getReviewsAndCalculateAverage();
   }, [id, fetchReviews]);
 
   // Calculate nights and total price when dates change
@@ -150,6 +127,60 @@ function PropertyDetail() {
       setTotalPrice(calculatedTotal);
     }
   }, [startDate, endDate, property, rooms]); // Add rooms as a dependency
+
+  
+  // Handle review submission
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    
+    if (!user) {
+      setReviewError('Debes iniciar sesión para dejar una reseña');
+      return;
+    }
+    
+    try {
+      setIsSubmitting(true);
+      setReviewError(null);
+      
+      const reviewData = {
+        userId: user.id,
+        rating: reviewRating,
+        comment: reviewComment,
+        accommodationId: id
+      };
+      
+      const { review, updatedReviews } = await createGenericReview(reviewData);
+      
+      // Update reviews list if we got updated reviews back
+      if (updatedReviews) {
+        setReviews(updatedReviews);
+        
+        // Recalculate average rating
+        const count = updatedReviews.length;
+        if (count > 0) {
+          const sum = updatedReviews.reduce((acc, review) => acc + review.rating, 0);
+          setAverageRating((sum / count).toFixed(1));
+          setReviewCount(count);
+        }
+      }
+      
+      // Reset form
+      setReviewComment('');
+      setReviewRating(5);
+      setReviewSuccess(true);
+      
+      // Hide success message after 3 seconds
+      setTimeout(() => {
+        setReviewSuccess(false);
+      }, 3000);
+      
+    } catch (err) {
+      console.error('Error submitting review:', err);
+      setReviewError('No se pudo enviar la reseña. Por favor, inténtalo de nuevo.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Handle booking submission
   const handleBooking = async (e) => {
@@ -183,10 +214,10 @@ function PropertyDetail() {
         checkOutDate: endDate,
         totalGuestCount: guests + children,
         rooms: rooms,
-        totalPrice: totalPrice
+        totalPrice: totalPrice,
+        notes: bookingNotes // Include notes in booking data
       };
       
-      const data = await createBooking(bookingData);
       
       // Use navigate instead of window.location.href
       navigate(`/payment/${property.id}`, {
@@ -195,7 +226,8 @@ function PropertyDetail() {
           accommodationId: property.id,
           checkInDate: startDate,
           checkOutDate: endDate,
-          rooms: rooms
+          rooms: rooms,
+          notes: bookingNotes // Pass notes to payment page
         }
       });
       
@@ -262,8 +294,8 @@ function PropertyDetail() {
               <div className="mx-2">•</div>
               <div className="flex items-center">
                 <Star className="h-5 w-5 text-yellow-500 mr-1" />
-                <span>{property.rating || 4.8}</span>
-                <span className="ml-1">({reviews && reviews.length ? reviews.length : 0} reseñas)</span>
+                <span>{averageRating}</span>
+                <span className="ml-1">({reviewCount} reseñas)</span>
               </div>
             </div>
             
@@ -280,7 +312,7 @@ function PropertyDetail() {
                   className={`py-2 px-4 font-medium ${activeTab === 'reviews' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => setActiveTab('reviews')}
                 >
-                  Reseñas ({reviews.length})
+                  Reseñas ({reviewCount})
                 </button>
               </div>
             </div>
@@ -540,7 +572,7 @@ function PropertyDetail() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Adultos</span>
-                    {console.log(property)}
+                    
                     <div className="flex items-center">
                       <button 
                         type="button"
@@ -595,7 +627,7 @@ function PropertyDetail() {
                     <span className="text-gray-600">Habitaciones</span>
                     <div className="flex items-center">
                       <button 
-                        type="button"
+                         type="button"
                         className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
                         onClick={() => setRooms(prev => Math.max(1, prev - 1))}
                       >
@@ -612,6 +644,8 @@ function PropertyDetail() {
                     </div>
                   </div>
                   
+                  
+                  
                   {guests + children === property.maxGuest && (
                     <p className="text-sm text-orange-600">
                       Has alcanzado el máximo de {property.maxGuest} huéspedes para este alojamiento.
@@ -619,6 +653,28 @@ function PropertyDetail() {
                   )}
                 </div>
               </div>
+              
+              
+              {/* Add special requests/notes input */}
+              <div className="mb-6">
+                <label htmlFor="bookingNotes" className="block text-gray-700 text-sm font-medium mb-2">
+                  Peticiones especiales
+                </label>
+                <textarea
+                  id="bookingNotes"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Añade cualquier petición especial o nota para el anfitrión..."
+                  rows="3"
+                  value={bookingNotes}
+                  onChange={(e) => setBookingNotes(e.target.value)}
+                ></textarea>
+                <p className="text-xs text-gray-500 mt-1">
+                  El anfitrión hará lo posible por atender tus peticiones, sujeto a disponibilidad.
+                </p>
+              </div>
+              
+              
+              
               
               {startDate && endDate && (
                 <div className="border-t border-gray-200 pt-4 mb-6">
@@ -662,49 +718,4 @@ function PropertyDetail() {
   );
 }
 
-
-  // Handle review submission
-  const handleSubmitReview = async (e) => {
-    e.preventDefault();
-    
-    if (!user) {
-      setReviewError('Debes iniciar sesión para dejar una reseña');
-      return;
-    }
-    
-    try {
-      setIsSubmitting(true);
-      setReviewError(null);
-      
-      const reviewData = {
-        userId: user.id,
-        rating: reviewRating,
-        comment: reviewComment,
-        accommodationId: id
-      };
-      
-      const { review, updatedReviews } = await createGenericReview(reviewData);
-      
-      // Update reviews list if we got updated reviews back
-      if (updatedReviews) {
-        setReviews(updatedReviews);
-      }
-      
-      // Reset form
-      setReviewComment('');
-      setReviewRating(5);
-      setReviewSuccess(true);
-      
-      // Hide success message after 3 seconds
-      setTimeout(() => {
-        setReviewSuccess(false);
-      }, 3000);
-      
-    } catch (err) {
-      console.error('Error submitting review:', err);
-      setReviewError('No se pudo enviar la reseña. Por favor, inténtalo de nuevo.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 export default PropertyDetail;

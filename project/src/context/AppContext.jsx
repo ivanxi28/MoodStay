@@ -592,6 +592,27 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
+  const fetchAccomodationReviews = useCallback(async (accommodationId) => {
+    try {
+      setLoading(prev => ({ ...prev, reviews: true }));
+      const response = await fetch(`http://localhost:8000/api/accommodations/${accommodationId}/reviews`);
+      
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setError(prev => ({ ...prev, reviews: null }));
+      return data;
+    } catch (err) {
+      console.error('Error fetching accomodation reviews:', err);
+      setError(prev => ({ ...prev, reviews: err.message }));
+      return [];
+    } finally {
+      setLoading(prev => ({ ...prev, reviews: false }));
+    }
+  }, []);
+
   // Fetch reviews for an experience
   const fetchExperienceReviews = useCallback(async (experienceId) => {
     try {
@@ -613,6 +634,125 @@ export const AppProvider = ({ children }) => {
       setLoading(prev => ({ ...prev, reviews: false }));
     }
   }, []);
+
+  const createAccommodation = async (accommodationData) => {
+    try {
+      setLoading(prev => ({ ...prev, accommodations: true }));
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+  
+      const response = await fetch(`http://localhost:8000/api/accommodations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(accommodationData)
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error creating accommodation');
+      }
+  
+      const data = await response.json();
+      
+      // Update accommodations list if it exists
+      if (accommodations) {
+        setAccommodations([...accommodations, data]);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error creating accommodation:', error);
+      throw error;
+    } finally {
+      setLoading(prev => ({ ...prev, accommodations: false }));
+    }
+  };
+  
+  // Create restaurant
+  const createRestaurant = async (restaurantData) => {
+    try {
+      setLoading(prev => ({ ...prev, restaurants: true }));
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+  
+      const response = await fetch(`${API_URL}/restaurants`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(restaurantData)
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error creating restaurant');
+      }
+  
+      const data = await response.json();
+      
+      // Update restaurants list if it exists
+      if (restaurants) {
+        setRestaurants([...restaurants, data]);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error creating restaurant:', error);
+      throw error;
+    } finally {
+      setLoading(prev => ({ ...prev, restaurants: false }));
+    }
+  };
+  
+  // Create experience
+  const createExperience = async (experienceData) => {
+    try {
+      setLoading(prev => ({ ...prev, experiences: true }));
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+  
+      const response = await fetch(`${API_URL}/experiences`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(experienceData)
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error creating experience');
+      }
+  
+      const data = await response.json();
+      
+      // Update experiences list if it exists
+      if (experiences) {
+        setExperiences([...experiences, data]);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error creating experience:', error);
+      throw error;
+    } finally {
+      setLoading(prev => ({ ...prev, experiences: false }));
+    }
+  };
 
 
     // Create a generic review (for restaurants, experiences, or accommodations)
@@ -660,6 +800,8 @@ export const AppProvider = ({ children }) => {
       }
     }, [fetchRestaurant, fetchExperience, fetchReviews]);
 
+    
+
     // Value object to be provided to consumers
     const value = {
       accommodations,
@@ -679,6 +821,9 @@ export const AppProvider = ({ children }) => {
       fetchUserBookings,
       createBooking,
       createReview,
+      createAccommodation,
+      createRestaurant,
+      createExperience,
       createGenericReview, // Add the new method to the context value
       fetchExperiences,
       fetchExperience,
@@ -695,4 +840,7 @@ export const AppProvider = ({ children }) => {
 };
 
 export default AppProvider;
+
+
+
 

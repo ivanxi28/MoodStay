@@ -15,6 +15,9 @@ function RestaurantDetail() {
   // Add these state variables for reviews
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  // Add these new state variables for calculated rating
+  const [averageRating, setAverageRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
   
   // Review form state
   const [reviewRating, setReviewRating] = useState(5);
@@ -38,23 +41,40 @@ function RestaurantDetail() {
     getRestaurantDetails();
   }, [id, fetchRestaurant]);
 
-  // Add this useEffect to fetch reviews
+  // Add this useEffect to fetch reviews and calculate average rating
   useEffect(() => {
-    const getRestaurantReviews = async () => {
-      if (!id) return;
-      
+    const getReviewsAndCalculateAverage = async () => {
       try {
+        if (!id) return;
+        
         setReviewsLoading(true);
-        const reviewsData = await fetchRestaurantReviews(id);
-        setReviews(reviewsData);
-      } catch (err) {
-        console.error('Error fetching restaurant reviews:', err);
+        const reviews = await fetchRestaurantReviews(id);
+        setReviews(reviews);
+        
+        // Calculate number of reviews
+        const count = reviews.length;
+        
+        // Calculate average rating
+        let sum = 0;
+        if (count > 0) {
+          sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+          setAverageRating((sum / count).toFixed(1));
+          setReviewCount(count);
+        } else {
+          setAverageRating(0);
+          setReviewCount(0);
+        }
+        
+      } catch (error) {
+        console.error('Error getting restaurant reviews:', error);
+        // Keep default values in case of error
+        setReviewCount(0);
       } finally {
         setReviewsLoading(false);
       }
     };
 
-    getRestaurantReviews();
+    getReviewsAndCalculateAverage();
   }, [id, fetchRestaurantReviews]);
 
   // Handle review submission
@@ -88,9 +108,17 @@ function RestaurantDetail() {
         setRestaurant(result.updatedItem);
       }
       
-      // Refresh reviews
+      // Refresh reviews and recalculate average
       const updatedReviews = await fetchRestaurantReviews(id);
       setReviews(updatedReviews);
+      
+      // Recalculate average rating
+      const count = updatedReviews.length;
+      if (count > 0) {
+        const sum = updatedReviews.reduce((acc, review) => acc + review.rating, 0);
+        setAverageRating((sum / count).toFixed(1));
+        setReviewCount(count);
+      }
       
       // Reset form
       setReviewComment('');
@@ -187,8 +215,8 @@ function RestaurantDetail() {
               <div className="mx-2">•</div>
               <div className="flex items-center">
                 <Star className="h-5 w-5 text-yellow-500 mr-1" />
-                <span>{restaurant.rating}</span>
-                <span className="ml-1">({reviews.length || 0} reseñas)</span>
+                <span>{averageRating}</span>
+                <span className="ml-1">({reviewCount} reseñas)</span>
               </div>
               <div className="mx-2">•</div>
               <div className="flex items-center">
@@ -236,7 +264,7 @@ function RestaurantDetail() {
                   className={`py-2 px-4 font-medium ${activeTab === 'reviews' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => setActiveTab('reviews')}
                 >
-                  Reseñas ({reviews.length})
+                  Reseñas ({reviews && reviews.length ? reviews.length : 0})
                 </button>
                 <button 
                   className={`py-2 px-4 font-medium ${activeTab === 'photos' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
@@ -509,7 +537,8 @@ function BookingForm({ restaurant }) {
         reservationDate: date,
         reservationTime: time,
         guestCount: parseInt(guests),
-        totalPrice: estimatedPrice
+        totalPrice: estimatedPrice,
+        notes:notes
       };
       
       console.log('Sending booking data:', bookingData);
@@ -537,7 +566,8 @@ function BookingForm({ restaurant }) {
             restaurantName: restaurant.name,
             date: date,
             time: time,
-            guests: guests
+            guests: guests,
+            notes:notes
           } 
         });
       }, 1000); // Short delay to show success message
