@@ -14,6 +14,9 @@ use App\Repository\UserRepository;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use App\Entity\AccommodationImage;
+use App\Entity\Image;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\String\Slugger\SluggerInterface;
 use Symfony\Component\Uid\Uuid;
 
 class AccommodationController extends AbstractController
@@ -208,63 +211,103 @@ class AccommodationController extends AbstractController
         }
     }
     #[Route('/api/accommodations', name: 'create_accommodation', methods: ['POST'])]
-    
-public function createAccommodation(Request $request): Response
+public function createAccommodation(Request $request, SluggerInterface $slugger): Response
 {
     $userRepository = $this->entityManager->getRepository(\App\Entity\User::class);
+
     try {
-        // Decodificar los datos JSON del request
-        $data = json_decode($request->getContent(), true);
-        
-        if (!$data) {
-            return $this->json(['error' => 'Invalid JSON data'], Response::HTTP_BAD_REQUEST);
-        }
-        
-        // Validar datos requeridos
-        $requiredFields = ['title', 'description', 'type', 'pricePerNight', 'address', 'city', 'country'];
+        // Obtener los datos del alojamiento del request
+        $title = $request->request->get('title');
+        $description = $request->request->get('description');
+        $type = $request->request->get('type');
+        $pricePerNight = $request->request->get('pricePerNight');
+        $address = $request->request->get('address');
+        $city = $request->request->get('city');
+        $country = $request->request->get('country');
+        $locationLat = $request->request->get('locationLat');
+        $locationLng = $request->request->get('locationLng');
+        $amenities = $request->request->get('amenities');
+        $maxGuests = $request->request->get('maxGuests');
+        $hostId = $request->request->get('hostId');
+
+        // Validar datos requeridos (puedes usar Symfony's Validator Component para una validación más robusta)
+        $requiredFields = ['title', 'description', 'type', 'pricePerNight', 'address', 'city', 'country', 'hostId'];
         foreach ($requiredFields as $field) {
-            if (!isset($data[$field]) || empty($data[$field])) {
+            if (empty($request->request->get($field))) {
                 return $this->json(['error' => "Missing required field: {$field}"], Response::HTTP_BAD_REQUEST);
             }
         }
-        
+
         // Crear nueva instancia de Accommodation
         $accommodation = new Accommodation();
-        $accommodation->setTitle($data['title']);
-        $accommodation->setDescription($data['description']);
-        $accommodation->setType($data['type']);
-        $accommodation->setPricePerNight((float) $data['pricePerNight']);
-        $accommodation->setAddress($data['address']);
-        $accommodation->setCity($data['city']);
-        $accommodation->setCountry($data['country']);
-        
+        $accommodation->setTitle($title);
+        $accommodation->setDescription($description);
+        $accommodation->setType($type);
+        $accommodation->setPricePerNight((float) $pricePerNight);
+        $accommodation->setAddress($address);
+        $accommodation->setCity($city);
+        $accommodation->setCountry($country);
+
         // Campos opcionales
-        if (isset($data['locationLat'])) {
-            $accommodation->setLocationLat((float) $data['locationLat']);
-        }
-        
-        if (isset($data['locationLng'])) {
-            $accommodation->setLocationLng((float) $data['locationLng']);
-        }
-        
-        if (isset($data['amenities']) && is_array($data['amenities'])) {
-            $accommodation->setAmenities($data['amenities']);
-        }
-        
-        if (isset($data['maxGuests'])) {
-            $accommodation->setMaxGuests((int) $data['maxGuests']);
-        }
-        
-        
+        if ($locationLat) $accommodation->setLocationLat((float) $locationLat);
+        if ($locationLng) $accommodation->setLocationLng((float) $locationLng);
+        if ($amenities) $accommodation->setAmenities(json_decode($amenities, true) ?? []);
+        if ($maxGuests) $accommodation->setMaxGuests((int) $maxGuests);
+
         // Establecer fecha de creación
         $accommodation->setCreatedAtValue(new \DateTime());
-        $host = $userRepository->find($data['hostId']);
+        $host = $userRepository->find($hostId);
+        if (!$host) {
+            return $this->json(['error' => 'Invalid host ID'], Response::HTTP_BAD_REQUEST);
+        }
         $accommodation->setHost($host);
-        
+
+        // Procesar imágenes subidas
+        $imageFiles = $request->files->get('images');
+        $uploadsDir = $this->getParameter('accommodations_directory');
+
+        if (!file_exists($uploadsDir)) {
+            mkdir($uploadsDir, 0777, true);
+        }
+
+        if ($imageFiles && is_array($imageFiles)) {
+            foreach ($imageFiles as $key => $imageFile) {
+                if ($imageFile instanceof UploadedFile) {
+                    $originalFilename = pathinfo($imageFile->getClientOriginalName(), PATHINFO_FILENAME);
+                    $safeFilename = $slugger->slug($originalFilename);
+                    $newFilename = $safeFilename . '-' . uniqid() . '.' . $imageFile->guessExtension();
+
+                    try {
+                        $imageFile->move($uploadsDir, $newFilename);
+
+                        $image = new Image();
+                        $image->setAccommodation($accommodation);
+                        $image->setFilename($newFilename);
+                        $image->setAlt($request->request->get("alt_" . pathinfo($imageFile->getClientOriginalName(), PATHINFO_FILENAME)) ?? '');
+                        $image->setIsFeatured($request->request->getBoolean("isFeatured_" . pathinfo($imageFile->getClientOriginalName(), PATHINFO_FILENAME)) ?? false);
+
+                        // Lógica para establecer la imagen destacada (similar a tu código anterior)
+                        if (count($accommodation->getImages()) === 0 || $image->isFeatured()) {
+                            $image->setIsFeatured(true);
+                            foreach ($accommodation->getImages() as $existingImage) {
+                                $existingImage->setIsFeatured(false);
+                            }
+                        }
+
+                        $this->entityManager->persist($image);
+                        $accommodation->addImage($image);
+
+                    } catch (FileException $e) {
+                        return $this->json(['error' => 'Error al guardar la imagen: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+                    }
+                }
+            }
+        }
+
         // Persistir el alojamiento
         $this->entityManager->persist($accommodation);
         $this->entityManager->flush();
-        
+
         // Preparar respuesta
         $responseData = [
             'id' => $accommodation->getId(),
@@ -284,14 +327,22 @@ public function createAccommodation(Request $request): Response
                 'firstName' => $accommodation->getHost()->getFirstName(),
                 'lastName' => $accommodation->getHost()->getLastName()
             ],
-            'createdAt' => $accommodation->getCreatedAt()->format('Y-m-d H:i:s')
+            'createdAt' => $accommodation->getCreatedAt()->format('Y-m-d H:i:s'),
+            'images' => array_map(function ($image) {
+                return [
+                    'filename' => $image->getFilename(),
+                    'alt' => $image->getAlt(),
+                    'isFeatured' => $image->isFeatured(),
+                ];
+            }, $accommodation->getImages()->toArray()),
         ];
-        
+
         return $this->json($responseData, Response::HTTP_CREATED);
-        
+
     } catch (\Exception $e) {
         return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
     }
+
 }
 
     

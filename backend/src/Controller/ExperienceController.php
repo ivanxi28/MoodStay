@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Experience;
+use App\Entity\Image;
 use App\Repository\ExperienceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -10,6 +11,9 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\HttpFoundation\File\Exception\FileException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\String\Slugger\SluggerInterface;
 
 class ExperienceController extends AbstractController
 {
@@ -285,6 +289,110 @@ class ExperienceController extends AbstractController
         }
     }
 
+    #[Route('/api/experiences', name: 'create_experience', methods: ['POST'])]
+public function createExperience(Request $request, SluggerInterface $slugger, EntityManagerInterface $entityManager): Response
+{
+    try {
+        $title = $request->request->get('title');
+        $price = $request->request->get('price');
+
+        // Validar datos requeridos
+        if (empty($title) || empty($price)) {
+            return $this->json(['error' => 'Missing required fields'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $experience = new Experience();
+        $experience->setTitle($title);
+        $experience->setDescription($request->request->get('description') ?? '');
+        $experience->setLocationLat($request->request->get('latitude') ?? null);
+        $experience->setLocationLng($request->request->get('longitude') ?? null);
+        $experience->setCity($request->request->get('city') ?? '');
+        $experience->setCountry($request->request->get('country') ?? '');
+        $experience->setPrice($price);
+        $experience->setDurationMinutes($request->request->get('duration') ?? 180);
+        $experience->setMaxParticipants($request->request->get('maxParticipants') ?? 12);
+        $experience->setCategory($request->request->get('category') ?? 'Cultura');
+
+        // Establecer el usuario actual como host
+        $user = $this->getUser();
+        if (!$user) {
+            return $this->json(['error' => 'User not authenticated'], Response::HTTP_UNAUTHORIZED);
+        }
+        $experience->setHost($user);
+
+        // Establecer fecha de creación
+        $experience->setCreatedAtValue(new \DateTimeImmutable());
+
+        // Procesar la imagen subida
+        $imageFile = $request->files->get('images'); // Asegúrate de que el frontend envíe el archivo con el nombre 'image'
+        $uploadsDir = $this->getParameter('experiences_directory');
+
+        if (!file_exists($uploadsDir)) {
+            mkdir($uploadsDir, 0777, true);
+        }
+
+        if ($imageFile instanceof UploadedFile) {
+            $originalFilename = pathinfo($imageFile->getClientOriginalName(), PATHINFO_FILENAME);
+            $safeFilename = $slugger->slug($originalFilename);
+            $newFilename = $safeFilename . '-' . uniqid() . '.' . $imageFile->guessExtension();
+
+            try {
+                $imageFile->move($uploadsDir, $newFilename);
+
+                $image = new Image();
+                $image->setExperience($experience);
+                $image->setFilename($newFilename);
+                $image->setAlt($request->request->get("alt") ?? ''); // Puedes enviar un campo 'alt' para la descripción de la imagen
+                $image->setIsFeatured(true); // Por defecto, la primera imagen subida será la destacada
+
+                $entityManager->persist($image);
+                $experience->addImage($image); // Asocia la imagen con la experiencia
+
+            } catch (FileException $e) {
+                return $this->json(['error' => 'Error al guardar la imagen'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            }
+        }
+
+        $entityManager->persist($experience);
+        $entityManager->flush();
+
+        // Construir la respuesta con la información de la experiencia y la imagen
+        $experienceData = [
+            'id' => $experience->getId(),
+            'title' => $experience->getTitle(),
+            'description' => $experience->getDescription(),
+            'latitude' => $experience->getLocationLat(),
+            'longitude' => $experience->getLocationLng(),
+            'city' => $experience->getCity(),
+            'country' => $experience->getCountry(),
+            'price' => $experience->getPrice(),
+            'duration' => $experience->getDurationMinutes(),
+            'maxParticipants' => $experience->getMaxParticipants(),
+            'category' => $experience->getCategory(),
+            'images' => array_map(function (Image $image) {
+                return [
+                    'filename' => $image->getFilename(),
+                    'alt' => $image->getAlt(),
+                    'isFeatured' => $image->isFeatured(),
+                ];
+            }, $experience->getImages()->toArray()),
+            'host' => [
+                'id' => $experience->getHost()->getId(),
+                'firstName' => $experience->getHost()->getFirstName(),
+                'lastName' => $experience->getHost()->getLastName()
+            ],
+            'createdAt' => $experience->getCreatedAt()->format('Y-m-d H:i:s')
+        ];
+
+        return $this->json([
+            'message' => 'Experience created successfully',
+            'experience' => $experienceData
+        ], Response::HTTP_CREATED);
+
+    } catch (\Exception $e) {
+        return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+    }
+}
     // Añade este método helper para formatear UUIDs si no lo tienes ya
     private function formatUuid(string $id): \Symfony\Component\Uid\Uuid
     {

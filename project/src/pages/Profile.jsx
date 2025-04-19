@@ -331,7 +331,7 @@ const handleCancelBooking = async (bookingId) => {
                           ) : (
                             <>
                               <p className="text-gray-500">Hora de entrada:</p>
-                              <p>{booking.checkInTime || booking.reservationTime || '15:00'}</p>
+                              <p>{booking.checkInTime || booking.lunchTime || '15:00'}</p>
                             </>
                           )}
                           {/* Fix the conditional rendering for notes */}

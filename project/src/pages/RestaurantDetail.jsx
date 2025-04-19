@@ -536,6 +536,7 @@ function BookingForm({ restaurant }) {
         restaurantId: restaurant.id,
         reservationDate: date,
         reservationTime: time,
+        lunchTime:time,
         guestCount: parseInt(guests),
         totalPrice: estimatedPrice,
         notes:notes

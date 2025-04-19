@@ -42,6 +42,9 @@ class Booking
     #[ORM\Column(type: 'string', length: 20)]
     private ?string $status = null;
 
+    #[ORM\Column(type: 'time', nullable: true)]
+    private ?\DateTimeInterface $lunchTime = null;
+
     #[ORM\Column(type: 'string', length: 20, name: 'payment_status')]
     private ?string $paymentStatus = null;
 
@@ -229,6 +232,17 @@ class Booking
     public function setNotes(?string $notes): self
     {
         $this->notes = $notes;
+        return $this;
+    }
+    // Add getter and setter for lunchTime after other getters and setters
+    public function getLunchTime(): ?\DateTimeInterface
+    {
+        return $this->lunchTime;
+    }
+
+    public function setLunchTime(?\DateTimeInterface $lunchTime): self
+    {
+        $this->lunchTime = $lunchTime;
         return $this;
     }
 }

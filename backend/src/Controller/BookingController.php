@@ -192,6 +192,13 @@ class BookingController extends AbstractController
             $booking->setGuestCount($data['guestCount']);
             $booking->setPaymentStatus('paid');
             $booking->setRooms(0);
+            
+            // Convertir lunchTime string a DateTime
+            if (isset($data['lunchTime'])) {
+                $lunchTime = new \DateTime($data['lunchTime']);
+                $booking->setLunchTime($lunchTime);
+            }
+            
             $booking->setNotes($data['notes']); // Default value for restaurants (table count)
             
             // Set price if available or use a default calculation
@@ -384,6 +391,7 @@ class BookingController extends AbstractController
                     'status' => $booking->getStatus(),
                     'paymentStatus' => $booking->getPaymentStatus(),
                     'notes' => $booking->getNotes(),
+                    'lunchTime' => $booking->getLunchTime() ? $booking->getLunchTime()->format('H:i:s') : null,
                 ];
                 
                 // En el método getUserBookingsById, modifica las secciones donde se añaden los datos de accommodation, experience y restaurant:
@@ -439,6 +447,7 @@ class BookingController extends AbstractController
                         'country' => $restaurant->getCountry(),
                         'averagePrice' => $restaurant->getPriceRange(),
                         'cuisine' => $restaurant->getCuisine(),
+                        
                         
                     ];
                     

@@ -44,6 +44,9 @@ class Experience
 
     #[ORM\Column(type: 'integer', name: 'duration_minutes')]
     private ?int $durationMinutes = null;
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(name: 'host_id', referencedColumnName: 'id', nullable: false)]
+    private ?User $host = null;
 
     #[ORM\Column(type: 'integer', name: 'max_participants')]
     private ?int $maxParticipants = null;
@@ -87,6 +90,17 @@ class Experience
     public function getDescription(): ?string
     {
         return $this->description;
+    }
+    public function getHost():?User
+    {
+        return $this->host;
+   
+    }
+    public function setHost(User $host): self
+    {
+        $this->host = $host;
+
+        return $this;
     }
 
     public function setDescription(string $description): self

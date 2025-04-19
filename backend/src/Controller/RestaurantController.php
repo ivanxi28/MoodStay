@@ -2,12 +2,17 @@
 
 namespace App\Controller;
 
+use App\Entity\Image;
 use App\Entity\Restaurant;
 use App\Repository\RestaurantRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\File\Exception\FileException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\String\Slugger\SluggerInterface;
 use Symfony\Component\Uid\Uuid;
 
 class RestaurantController extends AbstractController
@@ -97,7 +102,6 @@ class RestaurantController extends AbstractController
                 'city' => $restaurant->getCity(),
                 'country' => $restaurant->getCountry(),
                 'cuisine' => $restaurant->getCuisine(),
-                'rating' => $restaurant->getRating(),
                 'priceRange' => $restaurant->getPriceRange(),
             ];
             
@@ -155,7 +159,6 @@ class RestaurantController extends AbstractController
                 'latitude' => $restaurant->getLatitude(),
                 'longitude' => $restaurant->getLongitude(),
                 'cuisine' => $restaurant->getCuisine(),
-                'rating' => $restaurant->getRating(),
                 'priceRange' => $restaurant->getPriceRange(),
                 'openingHours' => $restaurant->getOpeningHours(),
                 'createdAt' => $restaurant->getCreatedAt()->format('Y-m-d H:i:s'),
@@ -185,6 +188,73 @@ class RestaurantController extends AbstractController
             
         } catch (\InvalidArgumentException $e) {
             return $this->json(['error' => 'Invalid restaurant ID format'], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    #[Route('/api/restaurants', name: 'create_restaurant', methods: ['POST'])]
+    public function createRestaurant(Request $request, EntityManagerInterface $entityManager, SluggerInterface $slugger): Response
+    {
+        try {
+            // Validar datos requeridos del formulario
+            $name = $request->request->get('name');
+            $cuisine = $request->request->get('cuisine');
+
+            if (empty($name) || empty($cuisine)) {
+                return $this->json(['error' => 'Missing required fields'], Response::HTTP_BAD_REQUEST);
+            }
+
+            $restaurant = new Restaurant();
+            // ... configuración básica del restaurante ...
+
+            // Procesar imágenes subidas
+            $imageFiles = $request->files->get('images');
+            $uploadsDir = $this->getParameter('restaurants_directory'); // Cambiado a restaurants_directory
+
+            if (!file_exists($uploadsDir)) {
+                mkdir($uploadsDir, 0777, true);
+            }
+
+            if ($imageFiles && is_array($imageFiles)) {
+                foreach ($imageFiles as $imageFile) {
+                    if ($imageFile instanceof UploadedFile) {
+                        $originalFilename = pathinfo($imageFile->getClientOriginalName(), PATHINFO_FILENAME);
+                        $safeFilename = $slugger->slug($originalFilename);
+                        $newFilename = $safeFilename . '-' . uniqid() . '.' . $imageFile->guessExtension();
+
+                        try {
+                            $imageFile->move($uploadsDir, $newFilename);
+
+                            $image = new Image(); // Asegúrate de importar la clase correcta
+                            $image->setRestaurant($restaurant);
+                            $image->setFilename($newFilename);
+                            $image->setAlt($request->request->get("alt_" . $originalFilename) ?? '');
+                            $image->setIsFeatured($request->request->getBoolean("isFeatured_" . $originalFilename) ?? false);
+
+                            if (count($restaurant->getImages()) === 0 || $image->isFeatured()) {
+                                $image->setIsFeatured(true);
+                                foreach ($restaurant->getImages() as $existingImage) {
+                                    $existingImage->setIsFeatured(false);
+                                }
+                            }
+
+                            $entityManager->persist($image);
+                            $restaurant->addImage($image);
+                        } catch (FileException $e) {
+                            return $this->json(['error' => 'Error uploading image: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
+                        }
+                    }
+                }
+            }
+
+            $entityManager->persist($restaurant);
+            $entityManager->flush();
+
+            // ... resto del código de respuesta ...
+        } catch (\Exception $e) {
+            return $this->json([
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], Response::HTTP_BAD_REQUEST);
         }
     }
 }

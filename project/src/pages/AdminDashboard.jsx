@@ -1,4 +1,4 @@
-import React, { useState , useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
@@ -13,34 +13,51 @@ function AdminDashboard() {
   const [success, setSuccess] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
+  const { user } = useAuth();
   
   // Accommodation form state
   const [accommodation, setAccommodation] = useState({
     title: '',
     description: '',
+    type: 'apartment',
+    address: '',
     city: '',
-    type:'',
     country: 'España',
     pricePerNight: '',
-    maxGuest: 2,
-    rooms: 1,
-    image: '',
-    latitude: '',
-    longitude: '',
-    amenities:[],
+    hostId: user?.id || '',
+    maxGuests: 2,
+    imageFiles: [],
+    imagePreviews: [],
+    locationLat: '',
+    locationLng: '',
+    amenities: [],
   });
 
-  // Restaurant form state
   const [restaurant, setRestaurant] = useState({
     name: '',
     description: '',
+    address: '',
     city: '',
     country: 'España',
-    cuisine: '',
-    priceRange: 'medium',
-    image: '',
+    postalCode: '',
+    phone: '',
+    email: '',
+    website: '',
     latitude: '',
-    longitude: ''
+    longitude: '',
+    cuisine: '',
+    priceRange: '30',
+    openingHours: {
+      monday: ['12:00-16:00', '20:00-23:30'],
+      tuesday: ['12:00-16:00', '20:00-23:30'],
+      wednesday: ['12:00-16:00', '20:00-23:30'],
+      thursday: ['12:00-16:00', '20:00-23:30'],
+      friday: ['12:00-16:00', '20:00-00:30'],
+      saturday: ['12:00-16:00', '20:00-00:30'],
+      sunday: ['12:00-16:00', '20:00-23:00']
+    },
+    imageFiles: [],
+    imagePreviews: [],
   });
 
   // Experience form state
@@ -50,13 +67,456 @@ function AdminDashboard() {
     city: '',
     country: 'España',
     price: '',
-    duration: 2,
-    maxParticipants: 10,
-    image: '',
+    duration: 180,
+    maxParticipants: 12,
+    imageFiles: [],
+    imagePreviews: [],
     latitude: '',
-    longitude: ''
+    longitude: '',
+    category: 'Cultura'
   });
-  
+
+  // Handle accommodation form change
+  const handleAccommodationChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    
+    if (name === 'amenities') {
+      setAccommodation(prev => ({
+        ...prev,
+        amenities: checked 
+          ? [...prev.amenities, value]
+          : prev.amenities.filter(a => a !== value)
+      }));
+    } else {
+      setAccommodation(prev => ({
+        ...prev,
+        [name]: name === 'pricePerNight' || name === 'maxGuests'
+          ? parseFloat(value) || '' 
+          : value
+      }));
+    }
+  };
+
+  // Handle restaurant form change
+  const handleRestaurantChange = (e) => {
+    const { name, value } = e.target;
+    setRestaurant(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle experience form change
+  const handleExperienceChange = (e) => {
+    const { name, value } = e.target;
+    setExperience(prev => ({
+      ...prev,
+      [name]: name === 'price' || name === 'duration' || name === 'maxParticipants' 
+        ? parseInt(value) || '' 
+        : value
+    }));
+  };
+
+  // Handle file input for accommodation
+  const handleAccommodationImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      const newImageFiles = [...accommodation.imageFiles, ...files];
+      const newImagePreviews = [
+        ...accommodation.imagePreviews,
+        ...files.map(file => ({
+          preview: URL.createObjectURL(file),
+          filename: file.name,
+          alt: '',
+          isFeatured: accommodation.imagePreviews.length === 0 // First image is featured by default
+        }))
+      ];
+      
+      setAccommodation(prev => ({
+        ...prev,
+        imageFiles: newImageFiles,
+        imagePreviews: newImagePreviews
+      }));
+    }
+  };
+
+  // Remove image from accommodation
+  const removeAccommodationImage = (index) => {
+    setAccommodation(prev => {
+      const newImageFiles = [...prev.imageFiles];
+      const newImagePreviews = [...prev.imagePreviews];
+      
+      // Revoke object URL to avoid memory leaks
+      URL.revokeObjectURL(newImagePreviews[index].preview);
+      
+      newImageFiles.splice(index, 1);
+      newImagePreviews.splice(index, 1);
+      
+      // If we removed the featured image, make the first one featured (if any)
+      if (newImagePreviews.length > 0) {
+        const hasFeatured = newImagePreviews.some(img => img.isFeatured);
+        if (!hasFeatured) {
+          newImagePreviews[0].isFeatured = true;
+        }
+      }
+      
+      return {
+        ...prev,
+        imageFiles: newImageFiles,
+        imagePreviews: newImagePreviews
+      };
+    });
+  };
+  // Remove image from restaurant
+  const removeRestaurantImage = (index) => {
+    setRestaurant(prev => {
+      const newImageFiles = [...prev.imageFiles];
+      const newImagePreviews = [...prev.imagePreviews];
+
+      URL.revokeObjectURL(newImagePreviews[index].preview);
+
+      newImageFiles.splice(index, 1);
+      newImagePreviews.splice(index, 1);
+
+      if (newImagePreviews.length > 0) {
+        const hasFeatured = newImagePreviews.some(img => img.isFeatured);
+        if (!hasFeatured) {
+          newImagePreviews[0].isFeatured = true;
+        }
+      }
+
+      return {
+        ...prev,
+        imageFiles: newImageFiles,
+        imagePreviews: newImagePreviews
+      };
+    });
+  };
+
+  // Toggle featured status for a restaurant image (opcional, si lo necesitas)
+  const toggleRestaurantFeaturedImage = (index) => {
+    setRestaurant(prev => {
+      const newImagePreviews = prev.imagePreviews.map((img, i) => ({
+        ...img,
+        isFeatured: i === index
+      }));
+      return {
+        ...prev,
+        imagePreviews: newImagePreviews
+      };
+    });
+  };
+
+  // Update restaurant image alt text
+  const updateRestaurantImageAlt = (index, alt) => {
+    setRestaurant(prev => {
+      const newImagePreviews = [...prev.imagePreviews];
+      newImagePreviews[index] = {
+        ...newImagePreviews[index],
+        alt
+      };
+      return {
+        ...prev,
+        imagePreviews: newImagePreviews
+      };
+    });
+  };
+
+  // Toggle featured status for an image
+  const toggleFeaturedImage = (index) => {
+    setAccommodation(prev => {
+      const newImagePreviews = prev.imagePreviews.map((img, i) => ({
+        ...img,
+        isFeatured: i === index
+      }));
+      
+      return {
+        ...prev,
+        imagePreviews: newImagePreviews
+      };
+    });
+  };
+
+  // Update image alt text
+  const updateImageAlt = (index, alt) => {
+    setAccommodation(prev => {
+      const newImagePreviews = [...prev.imagePreviews];
+      newImagePreviews[index] = {
+        ...newImagePreviews[index],
+        alt
+      };
+      
+      return {
+        ...prev,
+        imagePreviews: newImagePreviews
+      };
+    });
+  };
+
+  // Handle file input for restaurant
+  const handleRestaurantImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      const newImageFiles = [...restaurant.imageFiles, ...files];
+      const newImagePreviews = [
+        ...restaurant.imagePreviews,
+        ...files.map(file => ({
+          preview: URL.createObjectURL(file),
+          filename: file.name,
+          alt: '',
+          isFeatured: restaurant.imagePreviews.length === 0 // First image is featured by default
+        }))
+      ];
+
+      setRestaurant(prev => ({
+        ...prev,
+        imageFiles: newImageFiles,
+        imagePreviews: newImagePreviews
+      }));
+    }
+  };
+
+  // Handle file input for experience
+  const handleExperienceImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      const newImageFiles = [...experience.imageFiles, ...files];
+      const newImagePreviews = [
+        ...experience.imagePreviews,
+        ...files.map(file => ({
+          preview: URL.createObjectURL(file),
+          filename: file.name,
+          alt: '',
+          isFeatured: experience.imagePreviews.length === 0 // First image is featured by default
+        }))
+      ];
+
+      setExperience(prev => ({
+        ...prev,
+        imageFiles: newImageFiles,
+        imagePreviews: newImagePreviews
+      }));
+    }
+  };
+  // Remove image from experience
+  const removeExperienceImage = (index) => {
+    setExperience(prev => {
+      const newImageFiles = [...prev.imageFiles];
+      const newImagePreviews = [...prev.imagePreviews];
+
+      URL.revokeObjectURL(newImagePreviews[index].preview);
+
+      newImageFiles.splice(index, 1);
+      newImagePreviews.splice(index, 1);
+
+      if (newImagePreviews.length > 0) {
+        const hasFeatured = newImagePreviews.some(img => img.isFeatured);
+        if (!hasFeatured) {
+          newImagePreviews[0].isFeatured = true;
+        }
+      }
+
+      return {
+        ...prev,
+        imageFiles: newImageFiles,
+        imagePreviews: newImagePreviews
+      };
+    });
+  };
+
+  // Toggle featured status for an experience image (opcional)
+  const toggleExperienceFeaturedImage = (index) => {
+    setExperience(prev => {
+      const newImagePreviews = prev.imagePreviews.map((img, i) => ({
+        ...img,
+        isFeatured: i === index
+      }));
+      return {
+        ...prev,
+        imagePreviews: newImagePreviews
+      };
+    });
+  };
+
+  // Update experience image alt text
+  const updateExperienceImageAlt = (index, alt) => {
+    setExperience(prev => {
+      const newImagePreviews = [...prev.imagePreviews];
+      newImagePreviews[index] = {
+        ...newImagePreviews[index],
+        alt
+      };
+      return {
+        ...prev,
+        imagePreviews: newImagePreviews
+      };
+    });
+  };
+
+  // Handle opening hours change
+  const handleOpeningHoursChange = (day, index, value) => {
+    setRestaurant(prev => {
+      const updatedHours = { ...prev.openingHours };
+      const dayHours = [...updatedHours[day]];
+      dayHours[index] = value;
+      updatedHours[day] = dayHours;
+      
+      return {
+        ...prev,
+        openingHours: updatedHours
+      };
+    });
+  };
+
+  const handleAccommodationSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+        const formData = new FormData();
+
+        // Añade los datos del alojamiento al FormData
+        formData.append('title', accommodation.title);
+        formData.append('description', accommodation.description);
+        formData.append('type', accommodation.type);
+        formData.append('pricePerNight', accommodation.pricePerNight);
+        formData.append('address', accommodation.address);
+        formData.append('city', accommodation.city);
+        formData.append('country', accommodation.country);
+        formData.append('hostId', accommodation.hostId);
+        formData.append('locationLat', accommodation.locationLat);
+        formData.append('locationLng', accommodation.locationLng);
+        formData.append('amenities', JSON.stringify(accommodation.amenities));
+        formData.append('maxGuests', accommodation.maxGuests);
+        formData.append('hostId', user.id);
+
+        // Añade los archivos de las imágenes al FormData
+        accommodation.imageFiles.forEach((file, index) => {
+            formData.append('images[]', file, file.name); // 'images[]' para que Symfony lo reciba como un array
+
+            // Encuentra la información de la previsualización correspondiente para obtener alt e isFeatured
+            const previewInfo = accommodation.imagePreviews.find(prev => prev.filename === file.name);
+            if (previewInfo) {
+                formData.append(`alt_${file.name}`, previewInfo.alt);
+                formData.append(`isFeatured_${file.name}`, previewInfo.isFeatured);
+            }
+        });
+
+        console.log('FormData being sent:', formData); // Para depuración
+
+        const result = await createAccommodation(formData);
+        setSuccess('Alojamiento creado correctamente');
+        setAccommodation({
+            title: '',
+            description: '',
+            type: 'apartment',
+            address: '',
+            city: '',
+            country: 'España',
+            pricePerNight: '',
+            hostId: user?.id || '',
+            maxGuests: 2,
+            imageFiles: [],
+            imagePreviews: [],
+            locationLat: '',
+            locationLng: '',
+            amenities: [],
+        });
+        console.log('Created accommodation:', result);
+    } catch (err) {
+        console.error('Error creating accommodation:', err);
+        setError('Error al crear el alojamiento. Por favor, inténtalo de nuevo.');
+    } finally {
+        setLoading(false);
+    }
+};
+
+const handleRestaurantSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError(null);
+  setSuccess(null);
+
+  try {
+    const formData = new FormData();
+    formData.append('name', restaurant.name);
+    formData.append('description', restaurant.description);
+    formData.append('address', restaurant.address);
+    formData.append('city', restaurant.city);
+    formData.append('country', restaurant.country);
+    formData.append('postalCode', restaurant.postalCode);
+    formData.append('phone', restaurant.phone);
+    formData.append('email', restaurant.email);
+    formData.append('website', restaurant.website);
+    formData.append('latitude', restaurant.latitude);
+    formData.append('longitude', restaurant.longitude);
+    formData.append('cuisine', restaurant.cuisine);
+    formData.append('priceRange', restaurant.priceRange);
+    formData.append('openingHours', JSON.stringify(restaurant.openingHours));
+
+    restaurant.imageFiles.forEach((file, index) => {
+      formData.append('images[]', file, file.name);
+      const previewInfo = restaurant.imagePreviews.find(prev => prev.filename === file.name);
+      if (previewInfo) {
+        formData.append(`alt_${file.name}`, previewInfo.alt);
+        formData.append(`isFeatured_${file.name}`, previewInfo.isFeatured);
+      }
+    });
+
+    const result = await createRestaurant(formData);
+    setSuccess('Restaurante creado correctamente');
+    setRestaurant({ ...restaurant, imageFiles: [], imagePreviews: [] });
+    console.log('Created restaurant:', result);
+  } catch (err) {
+    console.error('Error creating restaurant:', err);
+    setError('Error al crear el restaurante. Por favor, inténtalo de nuevo.');
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleExperienceSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError(null);
+  setSuccess(null);
+
+  try {
+    const formData = new FormData();
+    formData.append('title', experience.title);
+    formData.append('price', experience.price);
+    formData.append('description', experience.description);
+    formData.append('latitude', experience.latitude);
+    formData.append('longitude', experience.longitude);
+    formData.append('city', experience.city);
+    formData.append('country', experience.country);
+    formData.append('duration', experience.duration);
+    formData.append('maxParticipants', experience.maxParticipants);
+    formData.append('category', experience.category);
+
+    experience.imageFiles.forEach((file) => {
+      formData.append('images[]', file, file.name);
+      const previewInfo = experience.imagePreviews.find(prev => prev.filename === file.name);
+      if (previewInfo) {
+        formData.append(`alt_${file.name}`, previewInfo.alt);
+        formData.append(`isFeatured_${file.name}`, previewInfo.isFeatured);
+      }
+    });
+
+    const result = await createExperience(formData);
+    setSuccess('Experiencia creada correctamente');
+    setExperience({ ...experience, imageFiles: [], imagePreviews: [] });
+    console.log('Created experience:', result);
+  } catch (err) {
+    console.error('Error creating experience:', err);
+    setError('Error al crear la experiencia. Por favor, inténtalo de nuevo.');
+  } finally {
+    setLoading(false);
+  }
+};
+
   useEffect(() => {
     // Verify admin status on component mount
     const verifyAdminStatus = async () => {
@@ -78,8 +538,6 @@ function AdminDashboard() {
           // Get the JSON response to see if user is admin
           const data = await response.json();
           
-          // Here you can check any property in the returned data
-          // For example, if the API returns { isAdmin: true }
           if (data && data.isAdmin === true) {
             setIsAdmin(true);
           } else {
@@ -121,129 +579,6 @@ function AdminDashboard() {
       </div>
     );
   }
-
-  // Handle accommodation form change
-  const handleAccommodationChange = (e) => {
-    const { name, value } = e.target;
-    setAccommodation(prev => ({
-      ...prev,
-      [name]: name === 'pricePerNight' || name === 'maxGuest' || name === 'rooms' 
-        ? parseInt(value) || '' 
-        : value
-    }));
-  };
-
-  // Handle restaurant form change
-  const handleRestaurantChange = (e) => {
-    const { name, value } = e.target;
-    setRestaurant(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  // Handle experience form change
-  const handleExperienceChange = (e) => {
-    const { name, value } = e.target;
-    setExperience(prev => ({
-      ...prev,
-      [name]: name === 'price' || name === 'duration' || name === 'maxParticipants' 
-        ? parseInt(value) || '' 
-        : value
-    }));
-  };
-
-  // Submit accommodation form
-  const handleAccommodationSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const result = await createAccommodation(accommodation);
-      setSuccess('Alojamiento creado correctamente');
-      setAccommodation({
-        title: '',
-        description: '',
-        city: '',
-        country: 'España',
-        pricePerNight: '',
-        maxGuest: 2,
-        rooms: 1,
-        image: '',
-        latitude: '',
-        longitude: ''
-      });
-      console.log('Created accommodation:', result);
-    } catch (err) {
-      console.error('Error creating accommodation:', err);
-      setError('Error al crear el alojamiento. Por favor, inténtalo de nuevo.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Submit restaurant form
-  const handleRestaurantSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const result = await createRestaurant(restaurant);
-      setSuccess('Restaurante creado correctamente');
-      setRestaurant({
-        name: '',
-        description: '',
-        city: '',
-        country: 'España',
-        cuisine: '',
-        priceRange: 'medium',
-        image: '',
-        latitude: '',
-        longitude: ''
-      });
-      console.log('Created restaurant:', result);
-    } catch (err) {
-      console.error('Error creating restaurant:', err);
-      setError('Error al crear el restaurante. Por favor, inténtalo de nuevo.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Submit experience form
-  const handleExperienceSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const result = await createExperience(experience);
-      setSuccess('Experiencia creada correctamente');
-      setExperience({
-        title: '',
-        description: '',
-        city: '',
-        country: 'España',
-        price: '',
-        duration: 2,
-        maxParticipants: 10,
-        image: '',
-        latitude: '',
-        longitude: ''
-      });
-      console.log('Created experience:', result);
-    } catch (err) {
-      console.error('Error creating experience:', err);
-      setError('Error al crear la experiencia. Por favor, inténtalo de nuevo.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -326,17 +661,77 @@ function AdminDashboard() {
               
               <div>
                 <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-1">
-                  URL de la imagen *
+                  Imágenes *
                 </label>
                 <input
-                  type="url"
+                  type="file"
                   id="image"
                   name="image"
-                  value={accommodation.image}
+                  accept="image/*"
+                  onChange={handleAccommodationImageChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  multiple
+                  required={accommodation.imagePreviews.length === 0}
+                />
+                {accommodation.imagePreviews.length > 0 && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {accommodation.imagePreviews.map((img, index) => (
+                      <div key={index} className="relative border rounded-md p-2">
+                        <img 
+                          src={img.preview} 
+                          alt={`Vista previa ${index + 1}`} 
+                          className="h-32 w-full object-cover rounded-md" 
+                        />
+                        <div className="mt-1 flex flex-col space-y-1">
+                          <input
+                            type="text"
+                            placeholder="Descripción de la imagen"
+                            value={img.alt}
+                            onChange={(e) => updateImageAlt(index, e.target.value)}
+                            className="text-xs px-2 py-1 border border-gray-300 rounded"
+                          />
+                          <div className="flex justify-between items-center">
+                            <label className="inline-flex items-center text-xs">
+                              <input
+                                type="radio"
+                                name="featuredImage"
+                                checked={img.isFeatured}
+                                onChange={() => toggleFeaturedImage(index)}
+                                className="form-radio h-3 w-3 text-blue-600"
+                              />
+                              <span className="ml-1">Principal</span>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => removeAccommodationImage(index)}
+                              className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo de alojamiento *
+                </label>
+                <select
+                  name="type"
+                  value={accommodation.type}
                   onChange={handleAccommodationChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   required
-                />
+                >
+                  <option value="apartment">Apartamento</option>
+                  <option value="house">Casa</option>
+                  <option value="villa">Villa</option>
+                  <option value="cottage">Cabaña</option>
+                </select>
               </div>
               
               <div className="md:col-span-2">
@@ -352,6 +747,21 @@ function AdminDashboard() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   required
                 ></textarea>
+              </div>
+              
+              <div>
+                <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
+                  Dirección *
+                </label>
+                <input
+                  type="text"
+                  id="address"
+                  name="address"
+                  value={accommodation.address}
+                  onChange={handleAccommodationChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
               </div>
               
               <div>
@@ -395,20 +805,21 @@ function AdminDashboard() {
                   value={accommodation.pricePerNight}
                   onChange={handleAccommodationChange}
                   min="1"
+                  step="0.01"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
               </div>
               
               <div>
-                <label htmlFor="maxGuest" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="maxGuests" className="block text-sm font-medium text-gray-700 mb-1">
                   Máximo de huéspedes *
                 </label>
                 <input
                   type="number"
-                  id="maxGuest"
-                  name="maxGuest"
-                  value={accommodation.maxGuest}
+                  id="maxGuests"
+                  name="maxGuests"
+                  value={accommodation.maxGuests}
                   onChange={handleAccommodationChange}
                   min="1"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -416,48 +827,59 @@ function AdminDashboard() {
                 />
               </div>
               
-              <div>
-                <label htmlFor="rooms" className="block text-sm font-medium text-gray-700 mb-1">
-                  Número de habitaciones *
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Servicios disponibles
                 </label>
-                <input
-                  type="number"
-                  id="rooms"
-                  name="rooms"
-                  value={accommodation.rooms}
-                  onChange={handleAccommodationChange}
-                  min="1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {[
+                    { id: 'wifi', label: 'WiFi' },
+                    { id: 'air_conditioning', label: 'Aire acondicionado' },
+                    { id: 'kitchen', label: 'Cocina' },
+                    { id: 'parking', label: 'Parking' },
+                    { id: 'pool', label: 'Piscina' }
+                  ].map(({ id, label }) => (
+                    <label key={id} className="inline-flex items-center">
+                      <input
+                        type="checkbox"
+                        name="amenities"
+                        value={id}
+                        checked={(accommodation.amenities || []).includes(id)}
+                        onChange={handleAccommodationChange}
+                        className="form-checkbox h-4 w-4 text-blue-600"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">{label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
               
               <div>
-                <label htmlFor="latitude" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="locationLat" className="block text-sm font-medium text-gray-700 mb-1">
                   Latitud
                 </label>
                 <input
                   type="text"
-                  id="latitude"
-                  name="latitude"
-                  value={accommodation.latitude}
+                  id="locationLat"
+                  name="locationLat"
+                  value={accommodation.locationLat}
                   onChange={handleAccommodationChange}
-                  placeholder="Ej: 40.416775"
+                  placeholder="Ej: 41.385063"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
               
               <div>
-                <label htmlFor="longitude" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="locationLng" className="block text-sm font-medium text-gray-700 mb-1">
                   Longitud
                 </label>
                 <input
                   type="text"
-                  id="longitude"
-                  name="longitude"
-                  value={accommodation.longitude}
+                  id="locationLng"
+                  name="locationLng"
+                  value={accommodation.locationLng}
                   onChange={handleAccommodationChange}
-                  placeholder="Ej: -3.703790"
+                  placeholder="Ej: 2.173404"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -476,7 +898,7 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* Restaurant Form */}
+           {/* Restaurant Form */}
       {activeTab === 'restaurants' && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
@@ -502,26 +924,68 @@ function AdminDashboard() {
               </div>
               
               <div>
-                <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-1">
-                  URL de la imagen *
-                </label>
+      <label htmlFor="restaurantImage" className="block text-sm font-medium text-gray-700 mb-1">
+        Imágenes *
+      </label>
+      <input
+        type="file"
+        id="restaurantImage"
+        name="restaurantImage"
+        accept="image/*"
+        onChange={handleRestaurantImageChange}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+        multiple
+        required={restaurant.imagePreviews.length === 0}
+      />
+                {restaurant.imagePreviews.length > 0 && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {restaurant.imagePreviews.map((img, index) => (
+            <div key={index} className="relative border rounded-md p-2">
+              <img
+                src={img.preview}
+                alt={`Vista previa ${index + 1}`}
+                className="h-32 w-full object-cover rounded-md"
+              />
+              <div className="mt-1 flex flex-col space-y-1">
                 <input
-                  type="url"
-                  id="image"
-                  name="image"
-                  value={restaurant.image}
-                  onChange={handleRestaurantChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
+                  type="text"
+                  placeholder="Descripción de la imagen"
+                  value={img.alt}
+                  onChange={(e) => updateRestaurantImageAlt(index, e.target.value)}
+                  className="text-xs px-2 py-1 border border-gray-300 rounded"
                 />
+                <div className="flex justify-between items-center">
+                  <label className="inline-flex items-center text-xs">
+                    <input
+                      type="radio"
+                      name="restaurantFeaturedImage"
+                      checked={img.isFeatured}
+                      onChange={() => toggleRestaurantFeaturedImage(index)}
+                      className="form-radio h-3 w-3 text-blue-600"
+                    />
+                    <span className="ml-1">Principal</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removeRestaurantImage(index)}
+                    className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                  >
+                    Eliminar
+                  </button>
+                </div>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
               
               <div className="md:col-span-2">
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="restaurantDescription" className="block text-sm font-medium text-gray-700 mb-1">
                   Descripción *
                 </label>
                 <textarea
-                  id="description"
+                  id="restaurantDescription"
                   name="description"
                   rows="4"
                   value={restaurant.description}
@@ -529,36 +993,6 @@ function AdminDashboard() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   required
                 ></textarea>
-              </div>
-              
-              <div>
-                <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">
-                  Ciudad *
-                </label>
-                <input
-                  type="text"
-                  id="city"
-                  name="city"
-                  value={restaurant.city}
-                  onChange={handleRestaurantChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">
-                  País *
-                </label>
-                <input
-                  type="text"
-                  id="country"
-                  name="country"
-                  value={restaurant.country}
-                  onChange={handleRestaurantChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
               </div>
               
               <div>
@@ -571,7 +1005,7 @@ function AdminDashboard() {
                   name="cuisine"
                   value={restaurant.cuisine}
                   onChange={handleRestaurantChange}
-                  placeholder="Ej: Italiana, Mediterránea, etc."
+                  placeholder="Ej: Mediterránea, Italiana, Asiática..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
@@ -579,21 +1013,121 @@ function AdminDashboard() {
               
               <div>
                 <label htmlFor="priceRange" className="block text-sm font-medium text-gray-700 mb-1">
-                  Rango de precios *
+                  Precio medio (€) *
                 </label>
-                <select
+                <input
+                  type="number"
                   id="priceRange"
                   name="priceRange"
                   value={restaurant.priceRange}
                   onChange={handleRestaurantChange}
+                  min="1"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   required
-                >
-                  <option value="low">Económico</option>
-                  <option value="medium">Medio</option>
-                  <option value="high">Alto</option>
-                  <option value="luxury">Lujo</option>
-                </select>
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="restaurantAddress" className="block text-sm font-medium text-gray-700 mb-1">
+                  Dirección *
+                </label>
+                <input
+                  type="text"
+                  id="restaurantAddress"
+                  name="address"
+                  value={restaurant.address}
+                  onChange={handleRestaurantChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="restaurantCity" className="block text-sm font-medium text-gray-700 mb-1">
+                  Ciudad *
+                </label>
+                <input
+                  type="text"
+                  id="restaurantCity"
+                  name="city"
+                  value={restaurant.city}
+                  onChange={handleRestaurantChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="restaurantCountry" className="block text-sm font-medium text-gray-700 mb-1">
+                  País *
+                </label>
+                <input
+                  type="text"
+                  id="restaurantCountry"
+                  name="country"
+                  value={restaurant.country}
+                  onChange={handleRestaurantChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="postalCode" className="block text-sm font-medium text-gray-700 mb-1">
+                  Código Postal
+                </label>
+                <input
+                  type="text"
+                  id="postalCode"
+                  name="postalCode"
+                  value={restaurant.postalCode}
+                  onChange={handleRestaurantChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                  Teléfono *
+                </label>
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value={restaurant.phone}
+                  onChange={handleRestaurantChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={restaurant.email}
+                  onChange={handleRestaurantChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="website" className="block text-sm font-medium text-gray-700 mb-1">
+                  Sitio web
+                </label>
+                <input
+                  type="url"
+                  id="website"
+                  name="website"
+                  value={restaurant.website}
+                  onChange={handleRestaurantChange}
+                  placeholder="https://..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
               </div>
               
               <div>
@@ -606,7 +1140,7 @@ function AdminDashboard() {
                   name="latitude"
                   value={restaurant.latitude}
                   onChange={handleRestaurantChange}
-                  placeholder="Ej: 40.416775"
+                  placeholder="Ej: 41.385063"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -621,9 +1155,40 @@ function AdminDashboard() {
                   name="longitude"
                   value={restaurant.longitude}
                   onChange={handleRestaurantChange}
-                  placeholder="Ej: -3.703790"
+                  placeholder="Ej: 2.173404"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
+              </div>
+              
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Horario de apertura
+                </label>
+                
+                {Object.entries(restaurant.openingHours).map(([day, hours]) => (
+                  <div key={day} className="mb-3">
+                    <p className="text-sm font-medium text-gray-700 mb-1 capitalize">
+                      {day === 'monday' ? 'Lunes' : 
+                       day === 'tuesday' ? 'Martes' : 
+                       day === 'wednesday' ? 'Miércoles' : 
+                       day === 'thursday' ? 'Jueves' : 
+                       day === 'friday' ? 'Viernes' : 
+                       day === 'saturday' ? 'Sábado' : 'Domingo'}
+                    </p>
+                    <div className="flex space-x-2">
+                      {hours.map((hour, index) => (
+                        <input
+                          key={index}
+                          type="text"
+                          value={hour}
+                          onChange={(e) => handleOpeningHoursChange(day, index, e.target.value)}
+                          placeholder="HH:MM-HH:MM"
+                          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
             
@@ -666,19 +1231,61 @@ function AdminDashboard() {
               </div>
               
               <div>
-                <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-1">
-                  URL de la imagen *
-                </label>
+      <label htmlFor="experienceImage" className="block text-sm font-medium text-gray-700 mb-1">
+        Imágenes *
+      </label>
+      <input
+        type="file"
+        id="experienceImage"
+        name="experienceImage"
+        accept="image/*"
+        onChange={handleExperienceImageChange}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+        multiple
+        required={experience.imagePreviews.length === 0}
+      />
+                {experience.imagePreviews.length > 0 && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {experience.imagePreviews.map((img, index) => (
+            <div key={index} className="relative border rounded-md p-2">
+              <img
+                src={img.preview}
+                alt={`Vista previa ${index + 1}`}
+                className="h-32 w-full object-cover rounded-md"
+              />
+              <div className="mt-1 flex flex-col space-y-1">
                 <input
-                  type="url"
-                  id="image"
-                  name="image"
-                  value={experience.image}
-                  onChange={handleExperienceChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
+                  type="text"
+                  placeholder="Descripción de la imagen"
+                  value={img.alt}
+                  onChange={(e) => updateExperienceImageAlt(index, e.target.value)}
+                  className="text-xs px-2 py-1 border border-gray-300 rounded"
                 />
+                <div className="flex justify-between items-center">
+                  <label className="inline-flex items-center text-xs">
+                    <input
+                      type="radio"
+                      name="experienceFeaturedImage"
+                      checked={img.isFeatured}
+                      onChange={() => toggleExperienceFeaturedImage(index)}
+                      className="form-radio h-3 w-3 text-blue-600"
+                    />
+                    <span className="ml-1">Principal</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removeExperienceImage(index)}
+                    className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                  >
+                    Eliminar
+                  </button>
+                </div>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
               
               <div className="md:col-span-2">
                 <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
@@ -693,6 +1300,27 @@ function AdminDashboard() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   required
                 ></textarea>
+              </div>
+              
+              <div>
+                <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+                  Categoría *
+                </label>
+                <select
+                  id="category"
+                  name="category"
+                  value={experience.category}
+                  onChange={handleExperienceChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  <option value="Cultura">Cultura</option>
+                  <option value="Gastronomía">Gastronomía</option>
+                  <option value="Aventura">Aventura</option>
+                  <option value="Naturaleza">Naturaleza</option>
+                  <option value="Deportes">Deportes</option>
+                  <option value="Relax">Relax</option>
+                </select>
               </div>
               
               <div>
@@ -727,7 +1355,7 @@ function AdminDashboard() {
               
               <div>
                 <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-                  Precio (€) *
+                  Precio por persona (€) *
                 </label>
                 <input
                   type="number"
@@ -743,7 +1371,7 @@ function AdminDashboard() {
               
               <div>
                 <label htmlFor="duration" className="block text-sm font-medium text-gray-700 mb-1">
-                  Duración (horas) *
+                  Duración (minutos) *
                 </label>
                 <input
                   type="number"
@@ -751,8 +1379,7 @@ function AdminDashboard() {
                   name="duration"
                   value={experience.duration}
                   onChange={handleExperienceChange}
-                  min="0.5"
-                  step="0.5"
+                  min="30"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
@@ -784,7 +1411,7 @@ function AdminDashboard() {
                   name="latitude"
                   value={experience.latitude}
                   onChange={handleExperienceChange}
-                  placeholder="Ej: 40.416775"
+                  placeholder="Ej: 41.385063"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -799,7 +1426,7 @@ function AdminDashboard() {
                   name="longitude"
                   value={experience.longitude}
                   onChange={handleExperienceChange}
-                  placeholder="Ej: -3.703790"
+                  placeholder="Ej: 2.173404"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -822,5 +1449,3 @@ function AdminDashboard() {
 }
 
 export default AdminDashboard;
-
-// At the beginning of your component

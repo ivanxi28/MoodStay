@@ -18,17 +18,28 @@ function Payment() {
   // Get data from location state
   const { 
     amount, 
+    bookingType,
+    // Accommodation specific
     accommodationId, 
-    experienceId,
     checkInDate, 
     checkOutDate, 
     rooms,
+    // Experience specific
+    experienceId,
+    bookingDate,
+    numberOfParticipants,
+    totalGuestCount,
     bookingData,
-    notes // Get the booking data passed from PropertyDetail
+    // Restaurant specific
+    restaurantId,
+    restaurantName,
+    date,
+    time,
+    lunchTime,
+    guests,
+    // Common
+    notes
   } = location.state || {};
-  
-  
-
   
   // Format card number with spaces
   const formatCardNumber = (value) => {
@@ -59,8 +70,6 @@ function Payment() {
     return v;
   };
 
-  // In the handleSubmit function of Payment.jsx
-  
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -90,40 +99,52 @@ function Payment() {
       setError(null);
       
       let bookingId = id;
+      let createdBookingData = null;
       
       // Create booking at payment time
       if (createBooking) {
         try {
-          let bookingData;
+          let bookingRequestData;
           
           // Prepare booking data based on type
           if (accommodationId) {
-            bookingData = {
+            bookingRequestData = {
               accommodationId: accommodationId,
               checkInDate: checkInDate,
               checkOutDate: checkOutDate,
-              totalGuestCount: location.state?.totalGuestCount || 1,
+              totalGuestCount: totalGuestCount || 1,
               rooms: rooms || 1,
               totalPrice: amount,
-              notes:notes
+              notes: notes
             };
           } else if (experienceId) {
-            bookingData = {
+            bookingRequestData = {
               experienceId: experienceId,
-              numberOfParticipants: location.state?.totalGuestCount || 1,
-              bookingDate: location.state?.checkInDate,
-              totalPrice: amount
+              numberOfParticipants: numberOfParticipants || totalGuestCount || 1,
+              bookingDate: bookingDate || checkInDate,
+              totalPrice: amount,
+              notes: notes
+            };
+          } else if (restaurantId) {
+            bookingRequestData = {
+              restaurantId: restaurantId,
+              reservationDate: date,
+              lunchTime: time || lunchTime,
+              guestCount: guests,
+              totalPrice: amount,
+              notes: notes
             };
           }
           
-          if (bookingData) {
-            console.log("Creating booking with data:", bookingData);
-            const bookingResponse = await createBooking(bookingData);
+          if (bookingRequestData) {
+            console.log("Creating booking with data:", bookingRequestData);
+            const bookingResponse = await createBooking(bookingRequestData);
             console.log("Booking created:", bookingResponse);
             
             // Use the new booking ID if available
-            if (bookingResponse && bookingResponse.id) {
-              bookingId = bookingResponse.id;
+            if (bookingResponse && (bookingResponse.id || bookingResponse._id)) {
+              bookingId = bookingResponse.id || bookingResponse._id;
+              createdBookingData = bookingResponse;
             }
           }
         } catch (err) {
@@ -151,46 +172,116 @@ function Payment() {
           paymentStatus: "paid"
         };
       }
+      // If this is a restaurant booking
+      else if (restaurantId) {
+        paymentData = {
+          restaurantId: restaurantId,
+          paymentStatus: "paid"
+        };
+      }
       
       console.log("Payment data being sent:", paymentData);
       
       // Update payment status
-      if (updatePaymentStatus && (accommodationId || experienceId)) {
+      if (updatePaymentStatus && (accommodationId || experienceId || restaurantId)) {
         try {
           const response = await updatePaymentStatus(paymentData);
           console.log("Payment status update response:", response);
           
           // Navigate to confirmation page after successful payment
           setLoading(false);
-          navigate('/payment-confirmation', { 
-            state: { 
-              bookingId: bookingId,
-              amount,
-              accommodationId,
-              experienceId,
-              checkInDate: location.state?.checkInDate,
-              checkOutDate: location.state?.checkOutDate,
-              rooms,
-              cardLast4: cardNumber.replace(/\s/g, '').slice(-4)
-            } 
-          });
+          
+          // Prepare confirmation data based on booking type
+          let confirmationData = {
+            bookingId: bookingId,
+            amount: amount,
+            cardLast4: cardNumber.replace(/\s/g, '').slice(-4)
+          };
+          
+          // Add booking type specific data
+          if (accommodationId) {
+            confirmationData = {
+              ...confirmationData,
+              bookingType: 'accommodation',
+              accommodationId: accommodationId,
+              checkInDate: checkInDate,
+              checkOutDate: checkOutDate,
+              rooms: rooms,
+              notes: notes
+            };
+          } else if (experienceId) {
+            confirmationData = {
+              ...confirmationData,
+              bookingType: 'experience',
+              experienceId: experienceId,
+              experienceDate: bookingDate || checkInDate,
+              experienceTime: location.state?.time,
+              participants: numberOfParticipants || totalGuestCount,
+              notes: notes
+            };
+          } else if (restaurantId) {
+            confirmationData = {
+              ...confirmationData,
+              bookingType: 'restaurant',
+              restaurantId: restaurantId,
+              restaurantName: restaurantName,
+              date: date,
+              time: time || lunchTime,
+              guests: guests,
+              notes: notes
+            };
+          }
+          
+          navigate('/payment-confirmation', { state: confirmationData });
+          
         } catch (err) {
           console.error('Error updating payment status:', err);
           // Continue to confirmation page anyway for demo purposes
           setTimeout(() => {
             setLoading(false);
-            navigate('/payment-confirmation', { 
-              state: { 
-                bookingId: id,
-                amount,
-                accommodationId,
-                experienceId,
-                checkInDate,
-                checkOutDate,
-                rooms,
-                cardLast4: cardNumber.replace(/\s/g, '').slice(-4)
-              } 
-            });
+            
+            // Prepare confirmation data based on booking type
+            let confirmationData = {
+              bookingId: bookingId,
+              amount: amount,
+              cardLast4: cardNumber.replace(/\s/g, '').slice(-4)
+            };
+            
+            // Add booking type specific data
+            if (accommodationId) {
+              confirmationData = {
+                ...confirmationData,
+                bookingType: 'accommodation',
+                accommodationId: accommodationId,
+                checkInDate: checkInDate,
+                checkOutDate: checkOutDate,
+                rooms: rooms,
+                notes: notes
+              };
+            } else if (experienceId) {
+              confirmationData = {
+                ...confirmationData,
+                bookingType: 'experience',
+                experienceId: experienceId,
+                experienceDate: bookingDate || checkInDate,
+                experienceTime: location.state?.time,
+                participants: numberOfParticipants || totalGuestCount,
+                notes: notes
+              };
+            } else if (restaurantId) {
+              confirmationData = {
+                ...confirmationData,
+                bookingType: 'restaurant',
+                restaurantId: restaurantId,
+                restaurantName: restaurantName,
+                date: date,
+                time: time || lunchTime,
+                guests: guests,
+                notes: notes
+              };
+            }
+            
+            navigate('/payment-confirmation', { state: confirmationData });
           }, 1500);
         }
       } else {
@@ -198,18 +289,49 @@ function Payment() {
         console.log('updatePaymentStatus function not available or missing ID, simulating success');
         setTimeout(() => {
           setLoading(false);
-          navigate('/payment-confirmation', { 
-            state: { 
-              bookingId: id,
-              amount,
-              accommodationId,
-              experienceId,
-              checkInDate,
-              checkOutDate,
-              rooms,
-              cardLast4: cardNumber.replace(/\s/g, '').slice(-4)
-            } 
-          });
+          
+          // Prepare confirmation data based on booking type
+          let confirmationData = {
+            bookingId: bookingId,
+            amount: amount,
+            cardLast4: cardNumber.replace(/\s/g, '').slice(-4)
+          };
+          
+          // Add booking type specific data
+          if (accommodationId) {
+            confirmationData = {
+              ...confirmationData,
+              bookingType: 'accommodation',
+              accommodationId: accommodationId,
+              checkInDate: checkInDate,
+              checkOutDate: checkOutDate,
+              rooms: rooms,
+              notes: notes
+            };
+          } else if (experienceId) {
+            confirmationData = {
+              ...confirmationData,
+              bookingType: 'experience',
+              experienceId: experienceId,
+              experienceDate: bookingDate || checkInDate,
+              experienceTime: location.state?.time,
+              participants: numberOfParticipants || totalGuestCount,
+              notes: notes
+            };
+          } else if (restaurantId) {
+            confirmationData = {
+              ...confirmationData,
+              bookingType: 'restaurant',
+              restaurantId: restaurantId,
+              restaurantName: restaurantName,
+              date: date,
+              time: time || lunchTime,
+              guests: guests,
+              notes: notes
+            };
+          }
+          
+          navigate('/payment-confirmation', { state: confirmationData });
         }, 1500);
       }
     } catch (error) {

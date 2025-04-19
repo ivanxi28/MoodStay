@@ -55,8 +55,7 @@ class Restaurant
     #[ORM\Column(type: 'string', length: 100)]
     private ?string $cuisine = null;
 
-    #[ORM\Column(type: 'decimal', precision: 3, scale: 1, nullable: true)]
-    private ?string $rating = null;
+   
 
     #[ORM\Column(type: 'decimal', precision: 10, scale: 2, nullable: true)]
     private ?string $priceRange = null;
@@ -251,17 +250,7 @@ class Restaurant
         return $this;
     }
 
-    public function getRating(): ?string
-    {
-        return $this->rating;
-    }
-
-    public function setRating(?string $rating): self
-    {
-        $this->rating = $rating;
-
-        return $this;
-    }
+    
 
     public function getPriceRange(): ?string
     {
