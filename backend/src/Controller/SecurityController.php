@@ -12,6 +12,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use App\Entity\User;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface; // Import UrlGeneratorInterface
 
 class SecurityController extends AbstractController
 {
@@ -19,17 +20,20 @@ class SecurityController extends AbstractController
     private $passwordHasher;
     private $jwtManager;
     private $tokenStorage;
+    private $urlGenerator; // Add urlGenerator property
 
     public function __construct(
         EntityManagerInterface $entityManager,
         UserPasswordHasherInterface $passwordHasher,
         JWTTokenManagerInterface $jwtManager,
-        TokenStorageInterface $tokenStorage
+        TokenStorageInterface $tokenStorage,
+        UrlGeneratorInterface $urlGenerator // Inject UrlGeneratorInterface
     ) {
         $this->entityManager = $entityManager;
         $this->passwordHasher = $passwordHasher;
         $this->jwtManager = $jwtManager;
         $this->tokenStorage = $tokenStorage;
+        $this->urlGenerator = $urlGenerator; // Assign injected service
     }
 
     #[Route('/api/login', name: 'api_login', methods: ['POST'])]
@@ -60,6 +64,29 @@ class SecurityController extends AbstractController
         // Generar token JWT
         $token = $this->jwtManager->create($user);
 
+        // Construct avatar URL if filename exists
+        $avatarUrl = null;
+        //$avatarFilename = $user->getAvatarFilename();
+        // if ($avatarFilename) {
+        //     // Assuming avatars are stored in 'public/uploads/avatars/'
+        //     // Adjust the path '/uploads/avatars/' if your storage location is different
+
+        //     // Use Request context to build the base URL
+        //     $baseUrl = $request->getSchemeAndHttpHost(); // Gets http://localhost:8000 (or similar)
+        //     $avatarUrl = $baseUrl . '/uploads/avatars/' . $avatarFilename; // Append the correct public path
+
+        //      // Remove or keep the UrlGenerator method commented out
+        //     $avatarUrl = $this->urlGenerator->generate(
+        //         'app_dummy_route', // Use a dummy route or create one if needed for base URL context
+        //         [],
+        //         UrlGeneratorInterface::ABSOLUTE_URL // Generate absolute URL
+        //     );
+            
+        //     $avatarUrl = rtrim($avatarUrl, '/') . '/uploads/avatars/' . $avatarFilename;
+            
+        // }
+
+
         return $this->json([
             'token' => $token,
             'user' => [
@@ -68,6 +95,8 @@ class SecurityController extends AbstractController
                 'firstName' => $user->getFirstName(),
                 'lastName' => $user->getLastName(),
                 'roles' => $user->getRoles(),
+                // 'avatarFilename' => $avatarFilename, // Keep filename if needed, or remove
+                //'avatarUrl' => $avatarUrl, // Use the correctly generated avatar URL
                 'createdAt' => $user->getCreatedAt() ? $user->getCreatedAt()->format('Y-m-d H:i:s') : null,
                 'updatedAt' => $user->getUpdatedAt() ? $user->getUpdatedAt()->format('Y-m-d H:i:s') : null
             ]
@@ -83,4 +112,8 @@ class SecurityController extends AbstractController
             'message' => 'Logout exitoso'
         ]);
     }
+
+    // Dummy route needed for UrlGenerator context if not using Request context
+    // #[Route('/_dummy', name: 'app_dummy_route', methods: ['GET'])]
+    // public function dummyRoute() { return new Response(); }
 }

@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Booking;
 use App\Repository\BookingRepository;
 use App\Repository\ExperienceRepository;
+use App\Repository\RestaurantRepository;
 use App\Repository\AccommodationRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -371,16 +372,17 @@ class BookingController extends AbstractController
                 return $this->json(['error' => 'User not found'], Response::HTTP_NOT_FOUND);
             }
             
-            // Check permissions - only allow if current user is the requested user or has ROLE_ADMIN
-            if ($currentUser->getId() != $user->getId() && !in_array('ROLE_ADMIN', $currentUser->getRoles())) {
-                return $this->json(['error' => 'Access denied'], Response::HTTP_FORBIDDEN);
-            }
             
-            // Find all bookings for the specified user
-            $bookings = $this->bookingRepository->findBy(['user' => $user]);
+            
+            // Find only 'confirmed' bookings for the specified user
+            $bookings = $this->bookingRepository->findBy([
+                'user' => $user,
+                'status' => 'confirmed' // Added status filter
+            ]);
             
             $bookingsData = [];
             foreach ($bookings as $booking) {
+                // No need for an extra check here, as the query already filtered
                 $bookingData = [
                     'id' => $booking->getId(),
                     'checkInDate' => $booking->getCheckInDate()->format('Y-m-d'),
@@ -388,7 +390,7 @@ class BookingController extends AbstractController
                     'guestCount' => $booking->getGuestCount(),
                     'rooms' => $booking->getRooms(),
                     'totalPrice' => $booking->getTotalPrice(),
-                    'status' => $booking->getStatus(),
+                    'status' => $booking->getStatus(), // Will always be 'confirmed' now
                     'paymentStatus' => $booking->getPaymentStatus(),
                     'notes' => $booking->getNotes(),
                     'lunchTime' => $booking->getLunchTime() ? $booking->getLunchTime()->format('H:i:s') : null,
@@ -471,6 +473,311 @@ class BookingController extends AbstractController
         }
     }
     
+    #[Route('/api/bookings/{bookingId}', name: 'get_booking_details', methods: ['GET'])]
+    public function getBookingDetails(string $bookingId): Response
+    {
+        $currentUser = $this->security->getUser();
+
+        if (!$currentUser) {
+            return $this->json(['error' => 'User not authenticated'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        try {
+            $bookingUuid = $this->formatUuid($bookingId);
+            $booking = $this->bookingRepository->find($bookingUuid);
+
+            if (!$booking) {
+                return $this->json(['error' => 'Booking not found'], Response::HTTP_NOT_FOUND);
+            }
+
+            // Authorization check: Ensure the current user owns the booking
+            // You might want to add an admin check here as well (e.g., || $this->security->isGranted('ROLE_ADMIN'))
+            if ($booking->getUser() !== $currentUser) {
+                 return $this->json(['error' => 'Access denied. You do not own this booking.'], Response::HTTP_FORBIDDEN);
+            }
+
+            // Prepare booking data for JSON response
+            $bookingData = [
+                'id' => $booking->getId(),
+                'checkInDate' => $booking->getCheckInDate() ? $booking->getCheckInDate()->format('Y-m-d H:i:s') : null, // Format date/time
+                'checkOutDate' => $booking->getCheckOutDate() ? $booking->getCheckOutDate()->format('Y-m-d H:i:s') : null, // Format date/time
+                'guestCount' => $booking->getGuestCount(),
+                'rooms' => $booking->getRooms(),
+                'totalPrice' => $booking->getTotalPrice(),
+                'status' => $booking->getStatus(),
+                'paymentStatus' => $booking->getPaymentStatus(),
+                'notes' => $booking->getNotes(),
+                'lunchTime' => $booking->getLunchTime() ? $booking->getLunchTime()->format('H:i:s') : null,
+                'createdAt' => $booking->getCreatedAt() ? $booking->getCreatedAt()->format('Y-m-d H:i:s') : null, // Add creation date if available
+                'updatedAt' => $booking->getUpdatedAt() ? $booking->getUpdatedAt()->format('Y-m-d H:i:s') : null, // Add update date if available
+                'user' => [
+                    'name' => $booking->getUser()->getFirstName() . ' ' . $booking->getUser()->getLastName(),
+                    'phone' => $booking->getUser()->getPhoneNumber()
+                ]
+            ];
+
+            // Add accommodation data if present
+            if ($accommodation = $booking->getAccommodation()) {
+                $bookingData['accommodation'] = [
+                    'id' => $accommodation->getId(),
+                    'title' => $accommodation->getTitle(),
+                    'city' => $accommodation->getCity(),
+                    'country' => $accommodation->getCountry(),
+                    'pricePerNight' => $accommodation->getPricePerNight(),
+                ];
+                $featuredImage = $accommodation->getFeaturedImage();
+                if ($featuredImage) {
+                    // Assuming you have 'app.base_url' parameter configured
+                     $baseUrl = $this->getParameter('app.base_url');
+                    $bookingData['accommodation']['featuredImage'] = $baseUrl . '/uploads/accommodations/' . $featuredImage->getFilename();
+                }
+            }
+
+            // Add experience data if present
+            if ($experience = $booking->getExperience()) {
+                $bookingData['experience'] = [
+                    'id' => $experience->getId(),
+                    'title' => $experience->getTitle(),
+                    'city' => $experience->getCity(),
+                    'country' => $experience->getCountry(),
+                    'price' => $experience->getPrice(),
+                    'category' => $experience->getCategory(),
+                ];
+                 $featuredImage = $experience->getFeaturedImage();
+                if ($featuredImage) {
+                     $baseUrl = $this->getParameter('app.base_url');
+                    $bookingData['experience']['featuredImage'] = $baseUrl . '/uploads/experiences/' . $featuredImage->getFilename();
+                }
+            }
+
+            // Add restaurant data if present
+            if ($restaurant = $booking->getRestaurant()) {
+                $bookingData['restaurant'] = [
+                    'id' => $restaurant->getId(),
+                    'name' => $restaurant->getName(),
+                    'city' => $restaurant->getCity(),
+                    'country' => $restaurant->getCountry(),
+                    'priceRange' => $restaurant->getPriceRange(), // Use priceRange for consistency
+                    'cuisine' => $restaurant->getCuisine(),
+                ];
+                 $featuredImage = $restaurant->getFeaturedImage();
+                if ($featuredImage) {
+                     $baseUrl = $this->getParameter('app.base_url');
+                    $bookingData['restaurant']['featuredImage'] = $baseUrl . '/uploads/restaurants/' . $featuredImage->getFilename();
+                }
+            }
+
+            return $this->json($bookingData);
+
+        } catch (\InvalidArgumentException $e) {
+            return $this->json(['error' => 'Invalid booking ID format'], Response::HTTP_BAD_REQUEST);
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            error_log('Error fetching booking details: ' . $e->getMessage());
+            return $this->json(['error' => 'An unexpected error occurred'], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+    #[Route('/api/reservations/host', name: 'get_host_reservations', methods: ['GET'])]
+    public function getHostReservations(): Response
+    {
+        $user = $this->security->getUser();
+
+        if (!$user || !in_array('ROLE_HOST', $user->getRoles())) {
+            return $this->json(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $reservationsData = [];
+
+        // Find bookings for accommodations owned by the host
+        $accommodations = $this->accommodationRepository->findBy(['host' => $user]);
+        foreach ($accommodations as $accommodation) {
+            $bookings = $this->bookingRepository->findBy(['accommodation' => $accommodation]);
+            foreach ($bookings as $booking) {
+                $reservationsData[] = $this->serializeReservationForHost($booking, 'accommodation', $accommodation->getTitle(), $booking->getUser()->getFirstName());
+            }
+        }
+
+        // Find bookings for experiences owned by the host
+        $experiences = $this->experienceRepository->findBy(['host' => $user]);
+        foreach ($experiences as $experience) {
+            $bookings = $this->bookingRepository->findBy(['experience' => $experience]);
+            foreach ($bookings as $booking) {
+                $reservationsData[] = $this->serializeReservationForHost($booking, 'experience', $experience->getTitle(), $booking->getUser()->getFirstName());
+            }
+        }
+        
+        // Find bookings for restaurants owned by the host
+        $restaurantRepository = $this->entityManager->getRepository(\App\Entity\Restaurant::class);
+        $restaurants = $restaurantRepository->findBy(['owner' => $user]);
+        foreach ($restaurants as $restaurant) {
+            $bookings = $this->bookingRepository->findBy(['restaurant' => $restaurant]);
+            foreach ($bookings as $booking) {
+                $reservationsData[] = $this->serializeReservationForHost($booking, 'restaurant', $restaurant->getName(), $booking->getUser()->getFirstName());
+            }
+        }
+
+        return $this->json($reservationsData);
+    }
+
+    private function serializeReservationForHost(Booking $booking, string $itemType, string $itemName, string $customerName): array
+    {
+        return [
+            'id' => $booking->getId(),
+            'itemType' => $itemType,
+            'itemName' => $itemName,
+            'customerName' => $customerName,
+            'startDate' => $booking->getCheckInDate() ? $booking->getCheckInDate()->format('Y-m-d') : null,
+            'endDate' => $booking->getCheckOutDate() ? $booking->getCheckOutDate()->format('Y-m-d') : null,
+            'status' => $booking->getStatus(),
+            // Add other relevant details
+        ];
+    }
+
+    #[Route('/api/reservations/{id}/accept', name: 'accept_reservation', methods: ['POST'])]
+    public function acceptReservation(string $id): Response
+    {
+        $user = $this->security->getUser();
+
+        if (!$user || !in_array('ROLE_HOST', $user->getRoles())) {
+            return $this->json(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        try {
+            $bookingId = $this->formatUuid($id);
+            $booking = $this->bookingRepository->find($bookingId);
+
+            if (!$booking) {
+                return $this->json(['error' => 'Reservation not found'], Response::HTTP_NOT_FOUND);
+            }
+
+            // Verify ownership
+            if (!$this->isHostOfBooking($user, $booking)) {
+                return $this->json(['error' => 'You are not the host of this reservation'], Response::HTTP_FORBIDDEN);
+            }
+
+            $booking->setStatus('accepted');
+            $this->entityManager->flush();
+
+            return $this->json(['message' => 'Reservation accepted'], Response::HTTP_OK);
+
+        } catch (\InvalidArgumentException $e) {
+            return $this->json(['error' => 'Invalid booking ID format'], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    #[Route('/api/reservations/{id}/reject', name: 'reject_reservation', methods: ['POST'])]
+    public function rejectReservation(string $id): Response
+    {
+        $user = $this->security->getUser();
+
+        if (!$user || !in_array('ROLE_HOST', $user->getRoles())) {
+            return $this->json(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        try {
+            $bookingId = $this->formatUuid($id);
+            $booking = $this->bookingRepository->find($bookingId);
+
+            if (!$booking) {
+                return $this->json(['error' => 'Reservation not found'], Response::HTTP_NOT_FOUND);
+            }
+
+            // Verify ownership
+            if (!$this->isHostOfBooking($user, $booking)) {
+                return $this->json(['error' => 'You are not the host of this reservation'], Response::HTTP_FORBIDDEN);
+            }
+
+            $booking->setStatus('rejected');
+            $this->entityManager->flush();
+
+            return $this->json(['message' => 'Reservation rejected'], Response::HTTP_OK);
+
+        } catch (\InvalidArgumentException $e) {
+            return $this->json(['error' => 'Invalid booking ID format'], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    private function isHostOfBooking(object $user, Booking $booking): bool
+    {
+        if ($booking->getAccommodation() && $booking->getAccommodation()->getHost() === $user) {
+            return true;
+        }
+        if ($booking->getExperience() && $booking->getExperience()->getHost() === $user) {
+            return true;
+        }
+        if ($booking->getRestaurant() && $booking->getRestaurant()->getOwner() === $user) {
+            return true;
+        }
+        return false;
+    }
+
+    #[Route('/api/reservations/{id}', name: 'get_reservation_details_host', methods: ['GET'])]
+    public function getReservationDetailsHost(string $id): Response
+    {
+        $user = $this->security->getUser();
+
+        if (!$user || !in_array('ROLE_HOST', $user->getRoles())) {
+            return $this->json(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        try {
+            $bookingId = $this->formatUuid($id);
+            $booking = $this->bookingRepository->find($bookingId);
+
+            if (!$booking) {
+                return $this->json(['error' => 'Reservation not found'], Response::HTTP_NOT_FOUND);
+            }
+
+            if (!$this->isHostOfBooking($user, $booking)) {
+                return $this->json(['error' => 'You are not the host of this reservation'], Response::HTTP_FORBIDDEN);
+            }
+
+            $bookingData = [
+                'id' => $booking->getId(),
+                'checkInDate' => $booking->getCheckInDate() ? $booking->getCheckInDate()->format('Y-m-d H:i:s') : null,
+                'checkOutDate' => $booking->getCheckOutDate() ? $booking->getCheckOutDate()->format('Y-m-d H:i:s') : null,
+                'guestCount' => $booking->getGuestCount(),
+                'rooms' => $booking->getRooms(),
+                'totalPrice' => $booking->getTotalPrice(),
+                'status' => $booking->getStatus(),
+                'paymentStatus' => $booking->getPaymentStatus(),
+                'notes' => $booking->getNotes(),
+                'customer' => [
+                    'id' => $booking->getUser()->getId(),
+                    'name' => $booking->getUser()->getName(),
+                    'email' => $booking->getUser()->getEmail(),
+                    // Add other relevant customer details
+                ],
+                // Include details of the booked item (accommodation, experience, or restaurant)
+            ];
+
+            if ($accommodation = $booking->getAccommodation()) {
+                $bookingData['accommodation'] = [
+                    'id' => $accommodation->getId(),
+                    'title' => $accommodation->getTitle(),
+                    // Add other accommodation details
+                ];
+            } elseif ($experience = $booking->getExperience()) {
+                $bookingData['experience'] = [
+                    'id' => $experience->getId(),
+                    'title' => $experience->getTitle(),
+                    // Add other experience details
+                ];
+            } elseif ($restaurant = $booking->getRestaurant()) {
+                $bookingData['restaurant'] = [
+                    'id' => $restaurant->getId(),
+                    'name' => $restaurant->getName(),
+                    // Add other restaurant details
+                ];
+            }
+
+            return $this->json($bookingData);
+
+        } catch (\InvalidArgumentException $e) {
+            return $this->json(['error' => 'Invalid booking ID format'], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
     // Helper method to format UUID strings
     private function formatUuid(string $id): \Symfony\Component\Uid\Uuid
     {
@@ -494,4 +801,62 @@ class BookingController extends AbstractController
         // Convert the string UUID to a proper Symfony\Component\Uid\Uuid object
         return \Symfony\Component\Uid\Uuid::fromString($id);
     }
+    #[Route('/api/accommodations/{accommodationId}/booked-dates', name: 'get_accommodation_booked_dates', methods: ['GET'])]
+    public function getAccommodationBookedDates(string $accommodationId): Response
+    {
+        try {
+            $accommodationUuid = $this->formatUuid($accommodationId);
+            $accommodation = $this->accommodationRepository->find($accommodationUuid);
+
+            if (!$accommodation) {
+                return $this->json(['error' => 'Accommodation not found'], Response::HTTP_NOT_FOUND);
+            }
+
+            // Buscar todas las reservas confirmadas o aceptadas para este alojamiento
+            $bookings = $this->bookingRepository->findBy([
+                'accommodation' => $accommodation,
+                'status' => ['confirmed', 'accepted'] // Solo considerar reservas confirmadas o aceptadas
+            ]);
+
+            $bookedDates = [];
+            foreach ($bookings as $booking) {
+                $checkIn = $booking->getCheckInDate();
+                $checkOut = $booking->getCheckOutDate();
+                
+                if ($checkIn && $checkOut) {
+                    // Crear un array con todas las fechas entre check-in y check-out
+                    $interval = new \DateInterval('P1D'); // Intervalo de 1 día
+                    $dateRange = new \DatePeriod($checkIn, $interval, $checkOut);
+                    
+                    foreach ($dateRange as $date) {
+                        $bookedDates[] = $date->format('Y-m-d');
+                    }
+                    
+                    // Incluir también la fecha de check-out
+                    $bookedDates[] = $checkOut->format('Y-m-d');
+                }
+            }
+
+            // Eliminar fechas duplicadas
+            $bookedDates = array_unique($bookedDates);
+            sort($bookedDates); // Ordenar fechas cronológicamente
+
+            return $this->json([
+                'accommodationId' => $accommodation->getId(),
+                'title' => $accommodation->getTitle(),
+                'bookedDates' => array_values($bookedDates) // Reindexar el array
+            ]);
+
+        } catch (\InvalidArgumentException $e) {
+            return $this->json(['error' => 'Invalid accommodation ID format'], Response::HTTP_BAD_REQUEST);
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            error_log('Error fetching booked dates: ' . $e->getMessage());
+            return $this->json(['error' => 'An unexpected error occurred'], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
 }
+
+
+    

@@ -5,6 +5,7 @@ const AppContext = createContext();
 
 // Custom hook to use the context
 export const useAppContext = () => useContext(AppContext);
+const API_URL = import.meta.env.VITE_API_URL;
 
 // Provider component
 export const AppProvider = ({ children }) => {
@@ -38,7 +39,7 @@ export const AppProvider = ({ children }) => {
     
     try {
       setLoading(prev => ({ ...prev, accommodations: true }));
-      const response = await fetch('http://localhost:8000/api/accommodations');
+      const response = await fetch(`${API_URL}/accommodations`);
       
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
@@ -62,7 +63,7 @@ export const AppProvider = ({ children }) => {
     
     try {
       setLoading(prev => ({ ...prev, featuredAccommodations: true }));
-      const response = await fetch('http://localhost:8000/api/accommodations?limit=3');
+      const response = await fetch(`${API_URL}/accommodations?limit=3`);
       
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
@@ -83,7 +84,7 @@ export const AppProvider = ({ children }) => {
   const fetchAccommodation = useCallback(async (id) => {
     try {
       setLoading(prev => ({ ...prev, accommodations: true }));
-      const response = await fetch(`http://localhost:8000/api/accommodations/${id}`);
+      const response = await fetch(`${API_URL}/accommodations/${id}`);
       
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
@@ -103,7 +104,7 @@ export const AppProvider = ({ children }) => {
   const fetchReviews = useCallback(async (accommodationId) => {
     try {
       setLoading(prev => ({ ...prev, reviews: true }));
-      const response = await fetch(`http://localhost:8000/api/accommodations/${accommodationId}/reviews`);
+      const response = await fetch(`${API_URL}/accommodations/${accommodationId}/reviews`);
       
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
@@ -131,7 +132,7 @@ export const AppProvider = ({ children }) => {
       }
 
       setLoading(prev => ({ ...prev, bookings: true }));
-      const response = await fetch('http://localhost:8000/api/bookings', {
+      const response = await fetch(`${API_URL}/bookings`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -162,7 +163,7 @@ export const AppProvider = ({ children }) => {
         throw new Error('User not authenticated');
       }
 
-      const response = await fetch('http://localhost:8000/api/bookings', {
+      const response = await fetch(`${API_URL}/bookings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -189,67 +190,25 @@ export const AppProvider = ({ children }) => {
   const fetchExperiences = useCallback(async () => {
     // Skip if already loading or if we already have data
     if (loading.experiences || experiences.length > 0) return;
-    
+
     try {
-      setLoading(prev => ({ ...prev, experiences: true }));
-      const response = await fetch('http://localhost:8000/api/experiences');
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setExperiences(data);
-      setError(prev => ({ ...prev, experiences: null }));
-    } catch (err) {
-      console.error('Error fetching experiences:', err);
-      setError(prev => ({ ...prev, experiences: err.message }));
-      
-      // Fallback to mock data
-      const mockExperiences = [
-        {
-          id: 1,
-          title: "Tour gastronómico por Madrid",
-          description: "Descubre los mejores sabores de la capital española en este recorrido por bares de tapas tradicionales.",
-          location: "Madrid",
-          country: "España",
-          price: 65,
-          duration: "3 horas",
-          rating: 4.9,
-          reviewCount: 28,
-          image: "https://images.unsplash.com/photo-1515443961218-a51367888e4b?auto=format&fit=crop&q=80&w=1200"
-        },
-        {
-          id: 2,
-          title: "Clase de paella valenciana",
-          description: "Aprende a cocinar la auténtica paella valenciana con ingredientes frescos y técnicas tradicionales.",
-          location: "Valencia",
-          country: "España",
-          price: 85,
-          duration: "4 horas",
-          rating: 4.8,
-          reviewCount: 42,
-          image: "https://images.unsplash.com/photo-1515669097368-22e68427d265?auto=format&fit=crop&q=80&w=1200"
-        },
-        {
-          id: 3,
-          title: "Ruta de senderismo por Picos de Europa",
-          description: "Disfruta de impresionantes vistas en esta ruta guiada por uno de los parques nacionales más espectaculares de España.",
-          location: "Asturias",
-          country: "España",
-          price: 45,
-          duration: "6 horas",
-          rating: 4.7,
-          reviewCount: 19,
-          image: "https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&q=80&w=1200"
+        setLoading(prev => ({ ...prev, experiences: true }));
+        const response = await fetch(`${API_URL}/experiences`);
+
+        if (!response.ok) {
+            throw new Error(`Error: ${response.status}`);
         }
-      ];
-      
-      setExperiences(mockExperiences);
+
+        const data = await response.json();
+        setExperiences(data);
+        setError(prev => ({ ...prev, experiences: null }));
+    } catch (err) {
+        console.error('Error fetching experiences:', err);
+        setError(prev => ({ ...prev, experiences: err.message }));
     } finally {
-      setLoading(prev => ({ ...prev, experiences: false }));
+        setLoading(prev => ({ ...prev, experiences: false }));
     }
-  }, [loading.experiences, experiences.length]);
+}, [loading.experiences, experiences.length]);
 
   // Create a review
   const createReview = useCallback(async (accommodationId, reviewData) => {
@@ -259,7 +218,7 @@ export const AppProvider = ({ children }) => {
         throw new Error('User not authenticated');
       }
 
-      const response = await fetch(`http://localhost:8000/api/accommodations/${accommodationId}/reviews`, {
+      const response = await fetch(`${API_URL}/accommodations/${accommodationId}/reviews`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -286,7 +245,7 @@ export const AppProvider = ({ children }) => {
     const fetchExperience = useCallback(async (id) => {
       try {
         setLoading(prev => ({ ...prev, experiences: true }));
-        const response = await fetch(`http://localhost:8000/api/experiences/${id}`);
+        const response = await fetch(`${API_URL}/experiences/${id}`);
         
         if (!response.ok) {
           throw new Error(`Error: ${response.status}`);
@@ -350,7 +309,7 @@ export const AppProvider = ({ children }) => {
           throw new Error('User not authenticated');
         }
     
-        const response = await fetch('http://localhost:8000/api/bookings/payment-status/update', {
+        const response = await fetch(`${API_URL}/bookings/payment-status/update`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -380,7 +339,7 @@ export const AppProvider = ({ children }) => {
       
       try {
         setLoading(prev => ({ ...prev, restaurants: true }));
-        const response = await fetch('http://localhost:8000/api/restaurants');
+        const response = await fetch(`${API_URL}/restaurants`);
         
         if (!response.ok) {
           throw new Error(`Error: ${response.status}`);
@@ -466,7 +425,7 @@ export const AppProvider = ({ children }) => {
     const fetchRestaurant = useCallback(async (id) => {
       try {
         setLoading(prev => ({ ...prev, restaurants: true }));
-        const response = await fetch(`http://localhost:8000/api/restaurants/${id}`);
+        const response = await fetch(`${API_URL}/restaurants/${id}`);
         
         if (!response.ok) {
           throw new Error(`Error: ${response.status}`);
@@ -572,7 +531,7 @@ export const AppProvider = ({ children }) => {
       const fetchRestaurantReviews = useCallback(async (restaurantId) => {
         try {
           setLoading(prev => ({ ...prev, reviews: true }));
-          const response = await fetch(`http://localhost:8000/api/restaurants/${restaurantId}/reviews`);
+          const response = await fetch(`${API_URL}/restaurants/${restaurantId}/reviews`);
           
           if (!response.ok) {
             throw new Error(`Error: ${response.status}`);
@@ -593,7 +552,7 @@ export const AppProvider = ({ children }) => {
       const fetchAccomodationReviews = useCallback(async (accommodationId) => {
         try {
           setLoading(prev => ({ ...prev, reviews: true }));
-          const response = await fetch(`http://localhost:8000/api/accommodations/${accommodationId}/reviews`);
+          const response = await fetch(`${API_URL}/accommodations/${accommodationId}/reviews`);
           
           if (!response.ok) {
             throw new Error(`Error: ${response.status}`);
@@ -615,7 +574,7 @@ export const AppProvider = ({ children }) => {
       const fetchExperienceReviews = useCallback(async (experienceId) => {
         try {
           setLoading(prev => ({ ...prev, reviews: true }));
-          const response = await fetch(`http://localhost:8000/api/experiences/${experienceId}/reviews`);
+          const response = await fetch(`${API_URL}/experiences/${experienceId}/reviews`);
           
           if (!response.ok) {
             throw new Error(`Error: ${response.status}`);
@@ -644,7 +603,7 @@ export const AppProvider = ({ children }) => {
     
             console.log('Sending accommodation FormData:', accommodationFormData);
     
-            const response = await fetch(`http://localhost:8000/api/accommodations`, {
+            const response = await fetch(`${API_URL}/accommodations`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -695,7 +654,7 @@ export const AppProvider = ({ children }) => {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`http://localhost:8000/api/restaurants`, {
+      const response = await fetch(`${API_URL}/restaurants`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -742,7 +701,7 @@ export const AppProvider = ({ children }) => {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`http://localhost:8000/api/experiences`, {
+      const response = await fetch(`${API_URL}/experiences`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -788,7 +747,7 @@ export const AppProvider = ({ children }) => {
             throw new Error('User not authenticated');
           }
       
-          const response = await fetch('http://localhost:8000/api/reviews', {
+          const response = await fetch(`${API_URL}/reviews`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

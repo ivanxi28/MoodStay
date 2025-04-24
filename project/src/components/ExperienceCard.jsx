@@ -39,16 +39,24 @@ function ExperienceCard({ experience }) {
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-      <div className="relative h-48">
-        <img 
-          src={experience.image || 'https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&q=80&w=1200'} 
-          alt={experience.title} 
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-          <h3 className="text-white text-lg font-semibold">{experience.title}</h3>
+        <div className="relative h-48">
+            {experience.images && experience.images.length > 0 ? (
+                <img
+                    src={experience.images[0].filename}
+                    alt={experience.title}
+                    className="w-full h-full object-cover"
+                />
+            ) : (
+                <img
+                    src="https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&q=80&w=1200"
+                    alt={experience.title}
+                    className="w-full h-full object-cover"
+                />
+            )}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                <h3 className="text-white text-lg font-semibold">{experience.title}</h3>
+            </div>
         </div>
-      </div>
       
       <div className="p-4">
         <div className="flex items-center text-gray-600 mb-2">

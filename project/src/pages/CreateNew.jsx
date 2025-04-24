@@ -408,22 +408,7 @@ function AdminDashboard() {
 
         const result = await createAccommodation(formData);
         setSuccess('Alojamiento creado correctamente');
-        setAccommodation({
-            title: '',
-            description: '',
-            type: 'apartment',
-            address: '',
-            city: '',
-            country: 'España',
-            pricePerNight: '',
-            hostId: user?.id || '',
-            maxGuests: 2,
-            imageFiles: [],
-            imagePreviews: [],
-            locationLat: '',
-            locationLng: '',
-            amenities: [],
-        });
+        setAccommodation({...accommodation, imageFiles: [], imagePreviews: [],amenities:[]});
         console.log('Created accommodation:', result);
     } catch (err) {
         console.error('Error creating accommodation:', err);
@@ -432,6 +417,7 @@ function AdminDashboard() {
         setLoading(false);
     }
 };
+const API_URL = import.meta.env.VITE_API_URL;
 
 const handleRestaurantSubmit = async (e) => {
   e.preventDefault();
@@ -439,7 +425,13 @@ const handleRestaurantSubmit = async (e) => {
   setError(null);
   setSuccess(null);
 
+  if (!restaurant.name || restaurant.name.trim() === '') {
+    setError('El nombre del restaurante es obligatorio.');
+    setLoading(false);
+    return;
+  }
   try {
+    
     const formData = new FormData();
     formData.append('name', restaurant.name);
     formData.append('description', restaurant.description);
@@ -456,6 +448,7 @@ const handleRestaurantSubmit = async (e) => {
     formData.append('priceRange', restaurant.priceRange);
     formData.append('openingHours', JSON.stringify(restaurant.openingHours));
 
+    
     restaurant.imageFiles.forEach((file, index) => {
       formData.append('images[]', file, file.name);
       const previewInfo = restaurant.imagePreviews.find(prev => prev.filename === file.name);
@@ -467,11 +460,13 @@ const handleRestaurantSubmit = async (e) => {
 
     const result = await createRestaurant(formData);
     setSuccess('Restaurante creado correctamente');
-    setRestaurant({ ...restaurant, imageFiles: [], imagePreviews: [] });
+    setRestaurant({...restaurant, imageFiles: [], imagePreviews: [],openingHours:{}});
     console.log('Created restaurant:', result);
   } catch (err) {
     console.error('Error creating restaurant:', err);
-    setError('Error al crear el restaurante. Por favor, inténtalo de nuevo.');
+    // Keep the specific error message from the backend if available, otherwise use a generic one
+    const errorMsg = err.response?.data?.message || err.message || 'Error al crear el restaurante. Por favor, inténtalo de nuevo.';
+    setError(errorMsg);
   } finally {
     setLoading(false);
   }
@@ -504,10 +499,13 @@ const handleExperienceSubmit = async (e) => {
         formData.append(`isFeatured_${file.name}`, previewInfo.isFeatured);
       }
     });
-
+    for (const pair of formData.entries()) {
+      console.log(pair[0] + ', ' + pair[1]);
+    }
     const result = await createExperience(formData);
     setSuccess('Experiencia creada correctamente');
     setExperience({ ...experience, imageFiles: [], imagePreviews: [] });
+  
     console.log('Created experience:', result);
   } catch (err) {
     console.error('Error creating experience:', err);
@@ -528,7 +526,7 @@ const handleExperienceSubmit = async (e) => {
           return;
         }
         
-        const response = await fetch(`http://localhost:8000/api/admin/verify`, {
+        const response = await fetch(`${API_URL}/host/verify`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -538,7 +536,7 @@ const handleExperienceSubmit = async (e) => {
           // Get the JSON response to see if user is admin
           const data = await response.json();
           
-          if (data && data.isAdmin === true) {
+          if (data && data.isHost === true) {
             setIsAdmin(true);
           } else {
             // If the response doesn't confirm admin status, redirect
@@ -563,7 +561,7 @@ const handleExperienceSubmit = async (e) => {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded">
-          Verificando permisos de administrador...
+          Verificando permisos de host...
         </div>
       </div>
     );
@@ -592,7 +590,7 @@ const handleExperienceSubmit = async (e) => {
         </button>
       </div>
 
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Panel de Administración</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">Panel de Creacion</h1>
 
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">

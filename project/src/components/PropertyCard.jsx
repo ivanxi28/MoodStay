@@ -57,12 +57,20 @@ function PropertyCard({ property }) {
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden transition-transform hover:scale-[1.02] hover:shadow-lg">
-      <div className="relative">
-        <img 
-          src={property.image || 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&q=80&w=1200'} 
-          alt={property.title}
-          className="w-full h-64 object-cover"
-        />
+    <div className="relative">
+        {property.images && property.images.length > 0 ? (
+            <img
+                src={property.images[0].filename}
+                alt={property.title}
+                className="w-full h-64 object-cover"
+            />
+        ) : (
+            <img
+                src="https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&q=80&w=1200"
+                alt={property.title}
+                className="w-full h-64 object-cover"
+            />
+        )}
         <div className="absolute top-4 right-4 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
           {propertyType}
         </div>

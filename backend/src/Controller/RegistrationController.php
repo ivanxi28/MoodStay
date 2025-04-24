@@ -34,7 +34,8 @@ class RegistrationController extends AbstractController
         $data = json_decode($request->getContent(), true);
 
         // Validar que todos los campos requeridos estén presentes
-        if (empty($data['email']) || empty($data['password']) || 
+        // Phone number is optional here based on entity definition
+        if (empty($data['email']) || empty($data['password']) ||
             empty($data['firstName']) || empty($data['lastName'])) {
             throw new BadRequestHttpException('Email, password, firstName, and lastName are required.');
         }
@@ -51,7 +52,13 @@ class RegistrationController extends AbstractController
         $user->setPassword($this->passwordEncoder->hashPassword($user, $data['password']));
         $user->setFirstName($data['firstName']);
         $user->setLastName($data['lastName']);
+        // Set phone number if provided in the request data
+        if (!empty($data['phoneNumber'])) {
+            $user->setPhoneNumber($data['phoneNumber']);
+        }
         $user->setRoles(['ROLE_USER']);
+        // Note: setCreatedAtValue is handled by PrePersist lifecycle callback in User entity
+        // $user->setCreatedAtValue(new \DateTimeImmutable()); // This line is likely redundant
 
         // Guardar el usuario en la base de datos
         $this->entityManager->persist($user);
@@ -68,6 +75,7 @@ class RegistrationController extends AbstractController
                 'email' => $user->getEmail(),
                 'firstName' => $user->getFirstName(),
                 'lastName' => $user->getLastName(),
+                'phoneNumber' => $user->getPhoneNumber(), // Include phone number in response
                 'roles' => $user->getRoles(),
             ]
         ], Response::HTTP_CREATED);

@@ -9,6 +9,7 @@ parameters:
     accommodations_directory: '%kernel.project_dir%/public/uploads/accommodations'
     experiences_directory: '%kernel.project_dir%/public/uploads/experiences'
     restaurants_directory: '%kernel.project_dir%/public/uploads/restaurants'
+    avatars_directory: '%kernel.project_dir%/public/uploads/avatars'
 
 services:
     # default configuration for services in *this* file

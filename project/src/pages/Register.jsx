@@ -9,7 +9,8 @@ function Register() {
     secondLastName: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    phoneNumber:''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,6 +42,7 @@ function Register() {
       firstName: formData.firstName,
       lastName: formData.lastName,
       email: formData.email,
+      phoneNumber:formData.phoneNumber,
       password: formData.password
       // secondLastName removed as it's not expected by the API
     };
@@ -122,6 +124,21 @@ function Register() {
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
             placeholder="tu@ejemplo.com"
             required
+          />
+        </div>
+        <div>
+          <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
+            Número de teléfono
+          </label>
+          <input          
+            type="number"
+            id="phoneNumber"
+            name="phoneNumber"
+            value={formData.phoneNumber} // Correctly bound value
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            placeholder="Tu número de teléfono" // Added placeholder
+            required // Keep required if necessary
           />
         </div>
         

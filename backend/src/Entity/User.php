@@ -34,6 +34,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'json')]
     private array $roles = [];
 
+    #[ORM\Column(type: 'string', length: 30, nullable: true, name: 'phone_number')] // Added phone number mapping
+    private ?string $phoneNumber = null; // Added phone number property
+
+    #[ORM\Column(type: 'string', length: 255, nullable: true, name: 'avatar_filename')] // Added mapping
+    private ?string $avatarFilename = null; // Added property
+
     #[ORM\Column(type: 'datetime_immutable', name: 'created_at')]
     private ?\DateTimeImmutable $createdAt = null;
 
@@ -90,6 +96,32 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setLastName(string $lastName): self
     {
         $this->lastName = $lastName;
+
+        return $this;
+    }
+
+    // Added getter and setter for phoneNumber
+    public function getPhoneNumber(): ?string
+    {
+        return $this->phoneNumber;
+    }
+
+    public function setPhoneNumber(?string $phoneNumber): self
+    {
+        $this->phoneNumber = $phoneNumber;
+
+        return $this;
+    }
+
+    // Added getter and setter for avatarFilename
+    public function getAvatarFilename(): ?string
+    {
+        return $this->avatarFilename;
+    }
+
+    public function setAvatarFilename(?string $avatarFilename): self
+    {
+        $this->avatarFilename = $avatarFilename;
 
         return $this;
     }

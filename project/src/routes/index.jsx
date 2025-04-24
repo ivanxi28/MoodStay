@@ -8,15 +8,20 @@ import Booking from '../pages/Booking';
 import Experiences from '../pages/Experiences';
 import ExperienceDetail from '../pages/ExperienceDetail';
 import Profile from '../pages/Profile';
-import AdminDashboard from '../pages/AdminDashboard';
+import CreateNew from '../pages/CreateNew';
 import RestaurantDetail from '../pages/RestaurantDetail';
 import PaymentConfirmation from '../pages/PaymentConfirmation';
 import Login from '../pages/Login';
 import Register from '../pages/Register';
 import Properties from '../pages/Properties';
+import CancelBooking from '../pages/CancelBookingPage';
 import PropertyDetail from '../pages/PropertyDetail';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Restaurants from '../pages/Restaurants';
+import ChatPage from '../pages/ChatPage';
+import ReservationManagementPage from '../pages/ReservationManagementPage ';
+import ReservationDetailsPage from '../pages/ReservationDetailsPage';
+import UserRoleManagement from '../pages/UserRoleManagement';
 
 export const router = createBrowserRouter([
   {
@@ -29,8 +34,26 @@ export const router = createBrowserRouter([
         element: <Home />,
       },
       {
+        path:"/chat/:bookingId" ,
+        element: <ProtectedRoute>
+        <ChatPage />
+        </ProtectedRoute>, 
+      },
+      {
         path: "properties",
         element: <Properties />,
+      },
+      {
+        path: "reservationmanagement",
+        element: <ReservationManagementPage />,
+      },
+      {
+        path:"/reservations/:reservationId" ,
+        element:<ReservationDetailsPage />,
+      },
+      {
+        path: "user-roles",
+        element: <UserRoleManagement />,
       },
       {
         path: "properties/:id",
@@ -60,8 +83,15 @@ export const router = createBrowserRouter([
         element: <PaymentConfirmation />,
       },
       {
-        path:"/admin",
-        element: <AdminDashboard/>,
+        path: "cancel-booking/:bookingId",
+        element: (
+        <ProtectedRoute>
+        <CancelBooking />
+        </ProtectedRoute>),
+      },
+      {
+        path:"/create-new",
+        element: <CreateNew/>,
       },
       {
         path: "experiences/:id",

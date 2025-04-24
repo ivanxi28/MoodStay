@@ -37,7 +37,7 @@ function Login() {
         setError(result.error || 'Error al iniciar sesión');
       }
     } catch (err) {
-      setError(err.message || 'Error al iniciar sesión');
+      setError(err.message || 'Email o contraseña incorrectos');
     } finally {
       setLoading(false);
     }

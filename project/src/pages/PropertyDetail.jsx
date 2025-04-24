@@ -46,7 +46,13 @@ function PropertyDetail() {
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [reviewError, setReviewError] = useState(null);
   
+  // Add state for booked dates
+  const [bookedDates, setBookedDates] = useState([]);
+  const [loadingBookedDates, setLoadingBookedDates] = useState(false);
+  
   const navigate = useNavigate();
+
+  const API_URL = import.meta.env.VITE_API_URL;
 
   
   // Fetch property details
@@ -66,6 +72,44 @@ function PropertyDetail() {
 
     getPropertyDetails();
   }, [id, fetchAccommodation]);
+
+  // Fetch booked dates for the property
+  useEffect(() => {
+    const fetchBookedDates = async () => {
+      if (!id) return;
+      
+      setLoadingBookedDates(true);
+      try {
+        const response = await fetch(`${API_URL}/accommodations/${id}/booked-dates`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch booked dates');
+        }
+        
+        const data = await response.json();
+        // Format the dates into an array of date strings
+        const formattedDates = data.map(booking => {
+          const dates = [];
+          const start = new Date(booking.checkInDate);
+          const end = new Date(booking.checkOutDate);
+          
+          // Add all dates between start and end (inclusive)
+          for (let date = new Date(start); date < end; date.setDate(date.getDate() + 1)) {
+            dates.push(date.toISOString().split('T')[0]);
+          }
+          
+          return dates;
+        }).flat();
+        
+        setBookedDates(formattedDates);
+      } catch (error) {
+        console.error('Error fetching booked dates:', error);
+      } finally {
+        setLoadingBookedDates(false);
+      }
+    };
+    
+    fetchBookedDates();
+  }, [id]);
 
   // Fetch reviews for the property
   useEffect(() => {
@@ -128,6 +172,54 @@ function PropertyDetail() {
     }
   }, [startDate, endDate, property, rooms]); // Add rooms as a dependency
 
+  // Check if a date is booked
+  const isDateBooked = (date) => {
+    return bookedDates.includes(date);
+  };
+  
+  // Handle date change with validation
+  const handleStartDateChange = (e) => {
+    const selectedDate = e.target.value;
+    
+    // Check if the selected date is booked
+    if (isDateBooked(selectedDate)) {
+      alert('Esta fecha ya está reservada. Por favor, selecciona otra fecha.');
+      return;
+    }
+    
+    setStartDate(selectedDate);
+    
+    // If end date is before the new start date, reset it
+    if (endDate && new Date(endDate) <= new Date(selectedDate)) {
+      setEndDate(null);
+    }
+  };
+  
+  const handleEndDateChange = (e) => {
+    const selectedDate = e.target.value;
+    
+    // Check if the selected date is booked
+    if (isDateBooked(selectedDate)) {
+      alert('Esta fecha ya está reservada. Por favor, selecciona otra fecha.');
+      return;
+    }
+    
+    // Check if any date between start and end is booked
+    if (startDate) {
+      const start = new Date(startDate);
+      const end = new Date(selectedDate);
+      
+      for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+        const dateString = date.toISOString().split('T')[0];
+        if (isDateBooked(dateString)) {
+          alert('Hay fechas reservadas en el rango seleccionado. Por favor, elige otro rango de fechas.');
+          return;
+        }
+      }
+    }
+    
+    setEndDate(selectedDate);
+  };
   
   // Handle review submission
   const handleSubmitReview = async (e) => {
@@ -278,11 +370,19 @@ function PropertyDetail() {
         <div className="lg:col-span-2">
           {/* Property Images */}
           <div className="bg-gray-200 rounded-lg overflow-hidden mb-6 h-96">
-            <img 
-              src={property.image || 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&q=80&w=1200'} 
-              alt={property.title} 
-              className="w-full h-full object-cover"
-            />
+            {property.images && property.images.length > 0 ? (
+              <img
+                src={property.images[0].url}
+                alt={property.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <img
+                src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&q=80&w=1200"
+                alt={property.title}
+                className="w-full h-full object-cover"
+              />
+            )}
           </div>
 
           {/* Property Details */}
@@ -538,179 +638,185 @@ function PropertyDetail() {
               {property.pricePerNight ? `€${property.pricePerNight}` : 'Consultar'} <span className="text-gray-500 text-base font-normal">/ noche</span>
             </h2>
             
-            <form onSubmit={handleBooking}>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-medium mb-2">Fechas</label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-gray-500 text-xs mb-1">Llegada</label>
-                    <input 
-                      type="date" 
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      value={startDate || ''}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-gray-500 text-xs mb-1">Salida</label>
-                    <input 
-                      type="date" 
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      value={endDate || ''}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      min={startDate || new Date().toISOString().split('T')[0]}
-                      required
-                    />
-                  </div>
-                </div>
+            {loadingBookedDates ? (
+              <div className="flex justify-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
               </div>
-              
-              <div className="mb-6">
-                <label className="block text-gray-700 text-sm font-medium mb-2">Huéspedes y habitaciones</label>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Adultos</span>
-                    
-                    <div className="flex items-center">
-                      <button 
-                        type="button"
-                        className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
-                        onClick={() => setGuests(prev => Math.max(1, prev - 1))}
-                      >
-                        -
-                      </button>
-                      <span className="mx-3">{guests}</span>
-                      <button 
-                        type="button"
-                        className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
-                        onClick={() => {
-                          // Check if adding an adult would exceed maxGuest
-                          if (guests + children + 1 <= (property.maxGuest || 10)) {
-                            setGuests(prev => prev + 1);
-                          }
-                        }}
-                      >
-                        +
-                      </button>
+            ) : (
+              <form onSubmit={handleBooking}>
+                <div className="mb-4">
+                  <label className="block text-gray-700 text-sm font-medium mb-2">Fechas</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-gray-500 text-xs mb-1">Llegada</label>
+                      <input 
+                        type="date" 
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={startDate || ''}
+                        onChange={handleStartDateChange}
+                        min={new Date().toISOString().split('T')[0]}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-500 text-xs mb-1">Salida</label>
+                      <input 
+                        type="date" 
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={endDate || ''}
+                        onChange={handleEndDateChange}
+                        min={startDate || new Date().toISOString().split('T')[0]}
+                        required
+                      />
                     </div>
                   </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Niños</span>
-                    <div className="flex items-center">
-                      <button 
-                        type="button"
-                        className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
-                        onClick={() => setChildren(prev => Math.max(0, prev - 1))}
-                      >
-                        -
-                      </button>
-                      <span className="mx-3">{children}</span>
-                      <button 
-                        type="button"
-                        className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
-                        onClick={() => {
-                          // Check if adding a child would exceed maxGuest
-                          if (guests + children + 1 <= (property.maxGuest || 10)) {
-                            setChildren(prev => prev + 1);
-                          }
-                        }}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Habitaciones</span>
-                    <div className="flex items-center">
-                      <button 
-                         type="button"
-                        className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
-                        onClick={() => setRooms(prev => Math.max(1, prev - 1))}
-                      >
-                        -
-                      </button>
-                      <span className="mx-3">{rooms}</span>
-                      <button 
-                        type="button"
-                        className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
-                        onClick={() => setRooms(prev => Math.min(property.rooms || 5, prev + 1))}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                  
-                  
-                  
-                  {guests + children === property.maxGuest && (
-                    <p className="text-sm text-orange-600">
-                      Has alcanzado el máximo de {property.maxGuest} huéspedes para este alojamiento.
+                  {bookedDates.length > 0 && (
+                    <p className="text-xs text-orange-600 mt-2">
+                      <Calendar className="inline-block w-3 h-3 mr-1" />
+                      Algunas fechas ya están reservadas. Por favor, selecciona fechas disponibles.
                     </p>
                   )}
                 </div>
-              </div>
-              
-              
-              {/* Add special requests/notes input */}
-              <div className="mb-6">
-                <label htmlFor="bookingNotes" className="block text-gray-700 text-sm font-medium mb-2">
-                  Peticiones especiales
-                </label>
-                <textarea
-                  id="bookingNotes"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="Añade cualquier petición especial o nota para el anfitrión..."
-                  rows="3"
-                  value={bookingNotes}
-                  onChange={(e) => setBookingNotes(e.target.value)}
-                ></textarea>
-                <p className="text-xs text-gray-500 mt-1">
-                  El anfitrión hará lo posible por atender tus peticiones, sujeto a disponibilidad.
-                </p>
-              </div>
-              
-              
-              
-              
-              {startDate && endDate && (
-                <div className="border-t border-gray-200 pt-4 mb-6">
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-600">
-                      {property.pricePerNight ? `€${property.pricePerNight}` : '?'} x {nights} noches x {rooms} {rooms === 1 ? 'habitación' : 'habitaciones'}
-                      {rooms > 1 ? ' (25% dto. en adicionales)' : ''}
-                    </span>
-                    <span className="text-gray-900">
-                      {property.pricePerNight ? `€${property.pricePerNight * nights + (rooms > 1 ? property.pricePerNight * nights * (rooms-1) * 0.75 : 0)}` : '?'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-600">
-                      Tarifa de limpieza {rooms > 1 ? `(€35 x ${rooms} habitaciones)` : ''}
-                    </span>
-                    <span className="text-gray-900">€{35 * rooms}</span>
-                  </div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-600">Tarifa de servicio</span>
-                    <span className="text-gray-900">€25</span>
-                  </div>
-                  <div className="flex justify-between font-semibold pt-2 border-t border-gray-200">
-                    <span>Total</span>
-                    <span>€{totalPrice}</span>
+                
+                <div className="mb-6">
+                  <label className="block text-gray-700 text-sm font-medium mb-2">Huéspedes y habitaciones</label>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Adultos</span>
+                      
+                      <div className="flex items-center">
+                        <button 
+                          type="button"
+                          className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
+                          onClick={() => setGuests(prev => Math.max(1, prev - 1))}
+                        >
+                          -
+                        </button>
+                        <span className="mx-3">{guests}</span>
+                        <button 
+                          type="button"
+                          className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
+                          onClick={() => {
+                            // Check if adding an adult would exceed maxGuest
+                            if (guests + children + 1 <= (property.maxGuest || 10)) {
+                              setGuests(prev => prev + 1);
+                            }
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Niños</span>
+                      <div className="flex items-center">
+                        <button 
+                          type="button"
+                          className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
+                          onClick={() => setChildren(prev => Math.max(0, prev - 1))}
+                        >
+                          -
+                        </button>
+                        <span className="mx-3">{children}</span>
+                        <button 
+                          type="button"
+                          className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
+                          onClick={() => {
+                            // Check if adding a child would exceed maxGuest
+                            if (guests + children + 1 <= (property.maxGuest || 10)) {
+                              setChildren(prev => prev + 1);
+                            }
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Habitaciones</span>
+                      <div className="flex items-center">
+                        <button 
+                          type="button"
+                          className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
+                          onClick={() => setRooms(prev => Math.max(1, prev - 1))}
+                        >
+                          -
+                        </button>
+                        <span className="mx-3">{rooms}</span>
+                        <button 
+                          type="button"
+                          className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-md focus:outline-none"
+                          onClick={() => setRooms(prev => Math.min(property.rooms || 5, prev + 1))}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {guests + children === property.maxGuest && (
+                      <p className="text-sm text-orange-600">
+                        Has alcanzado el máximo de {property.maxGuest} huéspedes para este alojamiento.
+                      </p>
+                    )}
                   </div>
                 </div>
-              )}
-              
-              <button 
-                type="submit"
-                className="w-full bg-blue-600 text-white py-3 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Reservar
-              </button>
-            </form>
+                
+                {/* Add special requests/notes input */}
+                <div className="mb-6">
+                  <label htmlFor="bookingNotes" className="block text-gray-700 text-sm font-medium mb-2">
+                    Peticiones especiales
+                  </label>
+                  <textarea
+                    id="bookingNotes"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Añade cualquier petición especial o nota para el anfitrión..."
+                    rows="3"
+                    value={bookingNotes}
+                    onChange={(e) => setBookingNotes(e.target.value)}
+                  ></textarea>
+                  <p className="text-xs text-gray-500 mt-1">
+                    El anfitrión hará lo posible por atender tus peticiones, sujeto a disponibilidad.
+                  </p>
+                </div>
+                
+                {startDate && endDate && (
+                  <div className="border-t border-gray-200 pt-4 mb-6">
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-600">
+                        {property.pricePerNight ? `€${property.pricePerNight}` : '?'} x {nights} noches x {rooms} {rooms === 1 ? 'habitación' : 'habitaciones'}
+                        {rooms > 1 ? ' (25% dto. en adicionales)' : ''}
+                      </span>
+                      <span className="text-gray-900">
+                        {property.pricePerNight ? `€${property.pricePerNight * nights + (rooms > 1 ? property.pricePerNight * nights * (rooms-1) * 0.75 : 0)}` : '?'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-600">
+                        Tarifa de limpieza {rooms > 1 ? `(€35 x ${rooms} habitaciones)` : ''}
+                      </span>
+                      <span className="text-gray-900">€{35 * rooms}</span>
+                    </div>
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-600">Tarifa de servicio</span>
+                      <span className="text-gray-900">€25</span>
+                    </div>
+                    <div className="flex justify-between font-semibold pt-2 border-t border-gray-200">
+                      <span>Total</span>
+                      <span>€{totalPrice}</span>
+                    </div>
+                  </div>
+                )}
+                
+                <button 
+                  type="submit"
+                  className="w-full bg-blue-600 text-white py-3 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  Reservar
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </div>

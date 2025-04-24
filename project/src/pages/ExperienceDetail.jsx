@@ -1,283 +1,347 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Star, Clock, Users, Globe, Calendar, ArrowLeft, Check } from 'lucide-react';
+import { MapPin, Star, Clock, Users, Globe, Calendar, ArrowLeft, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 
 function ExperienceDetail() {
-  const { id } = useParams();
-  const { fetchExperience, loading, fetchExperienceReviews, createGenericReview } = useAppContext();
-  const { user } = useAuth();
-  const [experience, setExperience] = useState(null);
-  const [error, setError] = useState(null);
-  const [participants, setParticipants] = useState(1);
-  const [selectedDate, setSelectedDate] = useState('');
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('details');
-  const [reviews, setReviews] = useState([]);
-  const [reviewsLoading, setReviewsLoading] = useState(false);
-  
-  // Add these state variables for calculated rating
-  const [averageRating, setAverageRating] = useState(0);
-  const [reviewCount, setReviewCount] = useState(0);
-  
-  // Add these missing state variables for the review form
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewComment, setReviewComment] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [reviewSuccess, setReviewSuccess] = useState(false);
-  const [reviewError, setReviewError] = useState(null);
-  
-  // Fetch experience details
-  useEffect(() => {
-    const getExperienceDetails = async () => {
-      try {
-        const data = await fetchExperience(id);
-        setExperience(data);
-      } catch (err) {
-        console.error('Error fetching experience details:', err);
-        setError('No se pudo cargar la información de la experiencia.');
-      }
+    const { id } = useParams();
+    const { fetchExperience, loading, fetchExperienceReviews, createGenericReview } = useAppContext();
+    const { user } = useAuth();
+    const [experience, setExperience] = useState(null);
+    const [error, setError] = useState(null);
+    const [participants, setParticipants] = useState(1);
+    const [selectedDate, setSelectedDate] = useState('');
+    const navigate = useNavigate();
+    const [activeTab, setActiveTab] = useState('details');
+    const [reviews, setReviews] = useState([]);
+    const [reviewsLoading, setReviewsLoading] = useState(false);
+
+    // Image slider state
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+    // State variables for calculated rating
+    const [averageRating, setAverageRating] = useState(0);
+    const [reviewCount, setReviewCount] = useState(0);
+
+    // State variables for the review form
+    const [reviewRating, setReviewRating] = useState(5);
+    const [reviewComment, setReviewComment] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [reviewSuccess, setReviewSuccess] = useState(false);
+    const [reviewError, setReviewError] = useState(null);
+
+    // Fetch experience details on component mount
+    useEffect(() => {
+        const getExperienceDetails = async () => {
+            try {
+                const data = await fetchExperience(id);
+                setExperience(data);
+            } catch (err) {
+                console.error('Error fetching experience details:', err);
+                setError('No se pudo cargar la información de la experiencia.');
+            }
+        };
+
+        getExperienceDetails();
+    }, [id, fetchExperience]);
+
+    // Fetch experience reviews and calculate average rating
+    useEffect(() => {
+        const getReviewsAndCalculateAverage = async () => {
+            try {
+                if (!id) return;
+
+                setReviewsLoading(true);
+                const fetchedReviews = await fetchExperienceReviews(id);
+                setReviews(fetchedReviews || []);
+
+                // Calculate the number of reviews
+                const count = fetchedReviews ? fetchedReviews.length : 0;
+
+                // Calculate the average rating
+                let sum = 0;
+                if (count > 0) {
+                    sum = fetchedReviews.reduce((acc, review) => acc + review.rating, 0);
+                    setAverageRating((sum / count).toFixed(1));
+                    setReviewCount(count);
+                } else {
+                    setAverageRating(0);
+                    setReviewCount(0);
+                }
+
+            } catch (error) {
+                console.error('Error getting experience reviews:', error);
+                // Maintain default values in case of an error
+                setReviewCount(0);
+            } finally {
+                setReviewsLoading(false);
+            }
+        };
+
+        getReviewsAndCalculateAverage();
+    }, [id, fetchExperienceReviews]);
+
+    // Handle the booking submission
+    const handleBooking = async (e) => {
+        e.preventDefault();
+
+        if (!selectedDate) {
+            alert('Por favor, selecciona una fecha para la experiencia');
+            return;
+        }
+
+        // Check if the user is logged in by verifying the token
+        const token = localStorage.getItem('token');
+        if (!token) {
+            // Store the current experience and booking details in localStorage for redirection after login
+            localStorage.setItem('pendingBooking', JSON.stringify({
+                experienceId: id,
+                bookingDate: selectedDate,
+                numberOfParticipants: participants
+            }));
+
+            // Redirect the user to the login page with a redirect URL back to the current experience
+            window.location.href = `/login?redirect=/experiences/${id}`;
+            return;
+        }
+
+        try {
+            // Calculate the total price based on the number of participants
+            const totalPrice = experience.price * participants;
+
+            // Navigate to the payment page, passing necessary booking information as state
+            navigate(`/payment/${experience.id}`, {
+                state: {
+                    amount: totalPrice,
+                    experienceId: experience.id,
+                    bookingDate: selectedDate, // Correct field name for booking date
+                    checkInDate: selectedDate, // Kept for potential compatibility
+                    checkOutDate: selectedDate, // Kept for potential compatibility
+                    numberOfParticipants: participants, // Correct field name for participants
+                    totalGuestCount: participants, // Kept for potential compatibility
+                    bookingData: {
+                        experienceId: experience.id,
+                        numberOfParticipants: participants,
+                        bookingDate: selectedDate,
+                        totalPrice: totalPrice
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error('Error navigating to payment:', error);
+            alert('No se pudo procesar la solicitud. Por favor, inténtalo de nuevo.');
+        }
     };
 
-    getExperienceDetails();
-  }, [id, fetchExperience]);
+    // Handle the submission of a review
+    const handleSubmitReview = async (e) => {
+        e.preventDefault();
 
-  // Fetch experience reviews
-  // Fetch experience reviews and calculate average rating
-  useEffect(() => {
-    const getReviewsAndCalculateAverage = async () => {
-      try {
-        if (!id) return;
-        
-        setReviewsLoading(true);
-        const reviews = await fetchExperienceReviews(id);
-        setReviews(reviews || []);
-        
-        // Calculate number of reviews
-        const count = reviews ? reviews.length : 0;
-        
-        // Calculate average rating
-        let sum = 0;
-        if (count > 0) {
-          sum = reviews.reduce((acc, review) => acc + review.rating, 0);
-          setAverageRating((sum / count).toFixed(1));
-          setReviewCount(count);
-        } else {
-          setAverageRating(0);
-          setReviewCount(0);
+        if (!user) {
+            setReviewError('Debes iniciar sesión para dejar una reseña');
+            return;
         }
-        
-      } catch (error) {
-        console.error('Error getting experience reviews:', error);
-        // Keep default values in case of error
-        setReviewCount(0);
-      } finally {
-        setReviewsLoading(false);
-      }
+
+        try {
+            setIsSubmitting(true);
+            setReviewError(null);
+
+            // Prepare the review data to be sent to the API
+            const reviewData = {
+                userId: user.id,
+                rating: parseInt(reviewRating), // Ensure the rating is an integer
+                comment: reviewComment,
+                experienceId: id
+            };
+
+            console.log('Sending review data:', reviewData); // For debugging purposes
+
+            const result = await createGenericReview(reviewData);
+            console.log('Review creation result:', result); // Log the result of the review creation
+
+            // If the review was successfully created and the item was updated, update the local state
+            if (result && result.updatedItem) {
+                setExperience(result.updatedItem);
+            }
+
+            // Refresh the list of reviews and recalculate the average rating
+            const updatedReviews = await fetchExperienceReviews(id);
+            setReviews(updatedReviews || []);
+
+            // Recalculate the average rating based on the updated reviews
+            const count = updatedReviews ? updatedReviews.length : 0;
+            if (count > 0) {
+                const sum = updatedReviews.reduce((acc, review) => acc + review.rating, 0);
+                setAverageRating((sum / count).toFixed(1));
+                setReviewCount(count);
+            }
+
+            // Reset the review form fields
+            setReviewComment('');
+            setReviewRating(5);
+            setReviewSuccess(true);
+
+            // Hide the success message after a brief period
+            setTimeout(() => {
+                setReviewSuccess(false);
+            }, 3000);
+
+        } catch (err) {
+            console.error('Error submitting review:', err);
+            setReviewError('No se pudo enviar la reseña. Por favor, inténtalo de nuevo.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    getReviewsAndCalculateAverage();
-  }, [id, fetchExperienceReviews]);
-
-  // Handle booking submission
-  const handleBooking = async (e) => {
-    e.preventDefault();
-    
-    if (!selectedDate) {
-      alert('Por favor, selecciona una fecha para la experiencia');
-      return;
-    }
-    
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    if (!token) {
-      // Save current experience and booking details to localStorage
-      localStorage.setItem('pendingBooking', JSON.stringify({
-        experienceId: id,
-        bookingDate: selectedDate,
-        numberOfParticipants: participants
-      }));
-      
-      // Redirect to login page with a return URL
-      window.location.href = `/login?redirect=/experiences/${id}`;
-      return;
-    }
-    
-    try {
-      // Calculate total price
-      const totalPrice = experience.price * participants;
-      
-      // Navigate to payment page with all necessary data
-      navigate(`/payment/${experience.id}`, {
-        state: {
-          amount: totalPrice,
-          experienceId: experience.id,
-          bookingDate: selectedDate, // Use the correct field name
-          checkInDate: selectedDate, // Keep for compatibility
-          checkOutDate: selectedDate, // Keep for compatibility
-          numberOfParticipants: participants, // Use the correct field name
-          totalGuestCount: participants, // Keep for compatibility
-          bookingData: {
-            experienceId: experience.id,
-            numberOfParticipants: participants,
-            bookingDate: selectedDate,
-            totalPrice: totalPrice
-          }
+    const nextImage = () => {
+        if (experience.images && experience.images.length > 0) {
+            setCurrentImageIndex((prevIndex) => (prevIndex + 1) % experience.images.length);
         }
-      });
-      
-    } catch (error) {
-      console.error('Error navigating to payment:', error);
-      alert('No se pudo procesar la solicitud. Por favor, inténtalo de nuevo.');
-    }
-  };
+    };
 
-  // Handle review submission
-  const handleSubmitReview = async (e) => {
-    e.preventDefault();
-    
-    if (!user) {
-      setReviewError('Debes iniciar sesión para dejar una reseña');
-      return;
-    }
-    
-    try {
-      setIsSubmitting(true);
-      setReviewError(null);
-      
-      // Make sure we're using the exact format expected by the API
-      const reviewData = {
-        userId: user.id,
-        rating: parseInt(reviewRating), // Ensure rating is a number
-        comment: reviewComment,
-        experienceId: id
-      };
-      
-      console.log('Sending review data:', reviewData); // For debugging
-      
-      const result = await createGenericReview(reviewData);
-      console.log('Review creation result:', result);
-      
-      // Update experience data with new review if available
-      if (result && result.updatedItem) {
-        setExperience(result.updatedItem);
-      }
-      
-      // Refresh reviews and recalculate average
-      const updatedReviews = await fetchExperienceReviews(id);
-      setReviews(updatedReviews || []);
-      
-      // Recalculate average rating
-      const count = updatedReviews ? updatedReviews.length : 0;
-      if (count > 0) {
-        const sum = updatedReviews.reduce((acc, review) => acc + review.rating, 0);
-        setAverageRating((sum / count).toFixed(1));
-        setReviewCount(count);
-      }
-      
-      // Reset form
-      setReviewComment('');
-      setReviewRating(5);
-      setReviewSuccess(true);
-      
-      // Hide success message after 3 seconds
-      setTimeout(() => {
-        setReviewSuccess(false);
-      }, 3000);
-      
-    } catch (err) {
-      console.error('Error submitting review:', err);
-      setReviewError('No se pudo enviar la reseña. Por favor, inténtalo de nuevo.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    const prevImage = () => {
+        if (experience.images && experience.images.length > 0) {
+            setCurrentImageIndex((prevIndex) => (prevIndex - 1 + experience.images.length) % experience.images.length);
+        }
+    };
 
-  if (loading?.experiences) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
+    const currentImageUrl = experience?.images && experience.images.length > 0
+        ? experience.images[currentImageIndex]?.url
+        : 'https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&q=80&w=1200';
 
-  if (error) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      </div>
-    );
-  }
-
-  if (!experience) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center">
-          <p className="text-gray-500 text-lg">No se encontró la experiencia.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="mb-6">
-        <Link to="/experiences" className="inline-flex items-center text-blue-600 hover:text-blue-800">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Volver a experiencias
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          {/* Experience Images */}
-          <div className="bg-gray-200 rounded-lg overflow-hidden mb-6 h-96">
-            <img 
-              src={experience.image || 'https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&q=80&w=1200'} 
-              alt={experience.title} 
-              className="w-full h-full object-cover"
-            />
-          </div>
-
-          {/* Experience Details */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{experience.title}</h1>
-            <div className="flex items-center text-gray-600 mb-4">
-              <MapPin className="h-5 w-5 mr-1" />
-              <span>{experience.location || experience.city}, {experience.country}</span>
-              <div className="mx-2">•</div>
-              <div className="flex items-center">
-                <Star className="h-5 w-5 text-yellow-500 mr-1" />
-                <span>{averageRating}</span>
-                <span className="ml-1">({reviewCount} reseñas)</span>
-              </div>
-              <div className="mx-2">•</div>
-              <div className="flex items-center">
-                <Clock className="h-5 w-5 mr-1" />
-                <span>{experience.duration || '2 horas'} horas</span>
-              </div>
+    // Display a loading indicator while experience data is being fetched
+    if (loading?.experiences) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
             </div>
-            
-            {/* Tabs for Details and Reviews */}
-            <div className="border-b border-gray-200 mb-6">
-              <div className="flex">
-                <button 
-                  className={`py-2 px-4 font-medium ${activeTab === 'details' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                  onClick={() => setActiveTab('details')}
-                >
-                  Detalles
-                </button>
-                <button 
-                  className={`py-2 px-4 font-medium ${activeTab === 'reviews' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                  onClick={() => setActiveTab('reviews')}
-                >
-                  Reseñas ({reviewCount})
-                </button>
-              </div>
+        );
+    }
+
+    // Display an error message if fetching experience data fails
+    if (error) {
+        return (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                    {error}
+                </div>
             </div>
+        );
+    }
+
+    // Display a message if the experience data is not yet available
+    if (!experience) {
+        return (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                <div className="text-center">
+                    <p className="text-gray-500 text-lg">No se encontró la experiencia.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="mb-6">
+                <Link to="/experiences" className="inline-flex items-center text-blue-600 hover:text-blue-800">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver a experiencias
+                </Link>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2">
+                    {/* Experience Images */}
+                    <div className="bg-gray-200 rounded-lg overflow-hidden mb-6 h-96 relative">
+                        {experience.images && experience.images.length > 1 && (
+                            <>
+                                <button
+                                    onClick={prevImage}
+                                    className="absolute left-3 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-50 rounded-full p-2 hover:bg-opacity-70 z-10"
+                                >
+                                    <ChevronLeft className="h-6 w-6 text-gray-800" />
+                                </button>
+                                <button
+                                    onClick={nextImage}
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-50 rounded-full p-2 hover:bg-opacity-70 z-10"
+                                >
+                                    <ChevronRight className="h-6 w-6 text-gray-800" />
+                                </button>
+                            </>
+                        )}
+                        <img
+                            src={currentImageUrl}
+                            alt={experience.title}
+                            className="w-full h-full object-cover cursor-grab active:cursor-grabbing"
+                            onMouseDown={(e) => {
+                                const slider = e.currentTarget;
+                                let startX = e.clientX - slider.offsetLeft;
+                                let scrollLeft = slider.scrollLeft;
+
+                                function dragStart(e) {
+                                    startX = e.clientX - slider.offsetLeft;
+                                    scrollLeft = slider.scrollLeft;
+                                }
+
+                                function dragMove(e) {
+                                    const x = e.clientX - slider.offsetLeft;
+                                    const walk = (x - startX) * 1; // Adjust multiplier for scroll speed
+                                    slider.scrollLeft = scrollLeft - walk;
+                                }
+
+                                function dragEnd() {
+                                    slider.removeEventListener('mousemove', dragMove);
+                                    slider.removeEventListener('mouseup', dragEnd);
+                                    slider.removeEventListener('mouseleave', dragEnd);
+                                }
+
+                                slider.addEventListener('mousedown', dragStart);
+                                slider.addEventListener('mouseup', dragEnd);
+                                slider.addEventListener('mouseleave', dragEnd);
+                                slider.addEventListener('mousemove', dragMove);
+                            }}
+                        />
+                    </div>
+
+                    {/* Experience Details */}
+                    <div className="mb-8">
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2">{experience.title}</h1>
+                        <div className="flex items-center text-gray-600 mb-4">
+                            <MapPin className="h-5 w-5 mr-1" />
+                            <span>{experience.location || experience.city}, {experience.country}</span>
+                            <div className="mx-2">•</div>
+                            <div className="flex items-center">
+                                <Star className="h-5 w-5 text-yellow-500 mr-1" />
+                                <span>{averageRating}</span>
+                                <span className="ml-1">({reviewCount} reseñas)</span>
+                            </div>
+                            <div className="mx-2">•</div>
+                            <div className="flex items-center">
+                                <Clock className="h-5 w-5 mr-1" />
+                                <span>{experience.duration || '2 horas'} horas</span>
+                            </div>
+                        </div>
+
+                        {/* Tabs for Details and Reviews */}
+                        <div className="border-b border-gray-200 mb-6">
+                            <div className="flex">
+                                <button
+                                    className={`py-2 px-4 font-medium ${activeTab === 'details' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                                    onClick={() => setActiveTab('details')}
+                                >
+                                    Detalles
+                                </button>
+                                <button
+                                    className={`py-2 px-4 font-medium ${activeTab === 'reviews' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                                    onClick={() => setActiveTab('reviews')}
+                                >
+                                    Reseñas ({reviewCount})
+                                </button>
+                            </div>
+                        </div>
             
             {activeTab === 'details' && (
               <>

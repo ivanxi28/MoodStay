@@ -39,57 +39,24 @@ class AccommodationController extends AbstractController
     }
 
     #[Route('/api/accommodations', name: 'get_all_accommodations', methods: ['GET'])]
-    public function getAllAccommodations(Request $request): Response
-    {
-        // Obtener todos los apartamentos
-        $accommodations = $this->accommodationRepository->findAll();
-        
-        // Transformar los datos para la respuesta
-        $accommodationsData = [];
-        foreach ($accommodations as $accommodation) {
-            $accommodationData = [
-                'id' => $accommodation->getId(),
-                'title' => $accommodation->getTitle(),
-                'description' => $accommodation->getDescription(),
-                'type' => $accommodation->getType(),
-                'pricePerNight' => $accommodation->getPricePerNight(),
-                'locationLat' => $accommodation->getLocationLat(),
-                'locationLng' => $accommodation->getLocationLng(),
-                'address' => $accommodation->getAddress(),
-                'city' => $accommodation->getCity(),
-                'country' => $accommodation->getCountry(),
-                'amenities' => $accommodation->getAmenities(),
-                'maxGuest'=>$accommodation->getMaxGuests(),
-                'host' => [
-                    'id' => $accommodation->getHost()->getId(),
-                    'firstName' => $accommodation->getHost()->getFirstName(),
-                    'lastName' => $accommodation->getHost()->getLastName()
-                ],
-                'createdAt' => $accommodation->getCreatedAt() ? $accommodation->getCreatedAt()->format('Y-m-d H:i:s') : null
+public function getAllAccommodations(Request $request): Response
+{
+    // Obtener todos los alojamientos
+    $accommodations = $this->accommodationRepository->findAll();
+
+    // Transformar los datos para la respuesta
+    $accommodationsData = [];
+    foreach ($accommodations as $accommodation) {
+        $imagesData = [];
+        foreach ($accommodation->getImages() as $image) {
+            $imagesData[] = [
+                'id' => $image->getId(),
+                'filename' => $this->getParameter('app.base_url') . '/uploads/accommodations/' . $image->getFilename(),
+                'alt' => $image->getAlt(),
+                'isFeatured' => $image->isFeatured(),
             ];
-            
-            // Añadir imagen destacada si está disponible
-            $featuredImage = $accommodation->getFeaturedImage();
-            if ($featuredImage) {
-                $accommodationData['featuredImage'] = $this->getParameter('app.base_url') . '/uploads/accommodations/' . $featuredImage->getFilename();
-            }
-            
-            $accommodationsData[] = $accommodationData;
         }
 
-        return $this->json($accommodationsData);
-    }
-
-    #[Route('/api/accommodations/{id}', name: 'get_accommodation', methods: ['GET'])]
-    public function getAccommodation(string $id): Response
-    {
-        $accommodation = $this->accommodationRepository->find($id);
-        
-        if (!$accommodation) {
-            return $this->json(['error' => 'Accommodation not found'], Response::HTTP_NOT_FOUND);
-        }
-        
-        // Transform the accommodation data for the response
         $accommodationData = [
             'id' => $accommodation->getId(),
             'title' => $accommodation->getTitle(),
@@ -108,31 +75,66 @@ class AccommodationController extends AbstractController
                 'firstName' => $accommodation->getHost()->getFirstName(),
                 'lastName' => $accommodation->getHost()->getLastName()
             ],
-            'createdAt' => $accommodation->getCreatedAt() ? $accommodation->getCreatedAt()->format('Y-m-d H:i:s') : null
+            'createdAt' => $accommodation->getCreatedAt() ? $accommodation->getCreatedAt()->format('Y-m-d H:i:s') : null,
+            'images' => $imagesData, // Añadimos el array de imágenes
         ];
-        
-        // Añadir todas las imágenes si están disponibles
-        $images = $accommodation->getImages();
-        if ($images && count($images) > 0) {
-            $accommodationData['images'] = [];
-            foreach ($images as $image) {
-                $accommodationData['images'][] = [
-                    'id' => $image->getId(),
-                    'url' => $this->getParameter('app.base_url') . '/uploads/accommodations/' . $image->getFilename(),
-                    'alt' => $image->getAlt(),
-                    'isFeatured' => $image->isFeatured()
-                ];
-            }
-            
-            // Añadir imagen destacada
-            $featuredImage = $accommodation->getFeaturedImage();
-            if ($featuredImage) {
-                $accommodationData['featuredImage'] = $this->getParameter('app.base_url') . '/uploads/accommodations/' . $featuredImage->getFilename();
-            }
-        }
-        
-        return $this->json($accommodationData);
+
+        $accommodationsData[] = $accommodationData;
     }
+
+    return $this->json($accommodationsData);
+}
+
+#[Route('/api/accommodations/{id}', name: 'get_accommodation', methods: ['GET'])]
+public function getAccommodation(string $id): Response
+{
+    $accommodation = $this->accommodationRepository->find($id);
+
+    if (!$accommodation) {
+        return $this->json(['error' => 'Accommodation not found'], Response::HTTP_NOT_FOUND);
+    }
+
+    $imagesData = [];
+    foreach ($accommodation->getImages() as $image) {
+        $imagesData[] = [
+            'id' => $image->getId(),
+            'url' => $this->getParameter('app.base_url') . '/uploads/accommodations/' . $image->getFilename(),
+            'alt' => $image->getAlt(),
+            'isFeatured' => $image->isFeatured()
+        ];
+    }
+
+    // Transform the accommodation data for the response
+    $accommodationData = [
+        'id' => $accommodation->getId(),
+        'title' => $accommodation->getTitle(),
+        'description' => $accommodation->getDescription(),
+        'type' => $accommodation->getType(),
+        'pricePerNight' => $accommodation->getPricePerNight(),
+        'locationLat' => $accommodation->getLocationLat(),
+        'locationLng' => $accommodation->getLocationLng(),
+        'address' => $accommodation->getAddress(),
+        'city' => $accommodation->getCity(),
+        'country' => $accommodation->getCountry(),
+        'amenities' => $accommodation->getAmenities(),
+        'maxGuest'=>$accommodation->getMaxGuests(),
+        'host' => [
+            'id' => $accommodation->getHost()->getId(),
+            'firstName' => $accommodation->getHost()->getFirstName(),
+            'lastName' => $accommodation->getHost()->getLastName()
+        ],
+        'createdAt' => $accommodation->getCreatedAt() ? $accommodation->getCreatedAt()->format('Y-m-d H:i:s') : null,
+        'images' => $imagesData, // Añadimos el array de imágenes
+    ];
+
+    // Añadir imagen destacada
+    $featuredImage = $accommodation->getFeaturedImage();
+    if ($featuredImage) {
+        $accommodationData['featuredImage'] = $this->getParameter('app.base_url') . '/uploads/accommodations/' . $featuredImage->getFilename();
+    }
+
+    return $this->json($accommodationData);
+}
 
     #[Route('/api/accommodations/{id}/images', name: 'upload_accommodation_image', methods: ['POST'])]
     public function uploadImage(string $id, Request $request): Response

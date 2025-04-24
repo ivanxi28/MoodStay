@@ -1,310 +1,367 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Star, Clock, Phone, Globe, ArrowLeft, Menu, Users } from 'lucide-react';
+import { MapPin, Star, Clock, Phone, Globe, ArrowLeft, Menu, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 
 function RestaurantDetail() {
-  const { id } = useParams();
-  const { fetchRestaurant, loading, createGenericReview, fetchRestaurantReviews } = useAppContext();
-  const { user } = useAuth();
-  const [restaurant, setRestaurant] = useState(null);
-  const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('menu');
-  
-  // Add these state variables for reviews
-  const [reviews, setReviews] = useState([]);
-  const [reviewsLoading, setReviewsLoading] = useState(false);
-  // Add these new state variables for calculated rating
-  const [averageRating, setAverageRating] = useState(0);
-  const [reviewCount, setReviewCount] = useState(0);
-  
-  // Review form state
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewComment, setReviewComment] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [reviewSuccess, setReviewSuccess] = useState(false);
-  const [reviewError, setReviewError] = useState(null);
+    const { id } = useParams();
+    const { fetchRestaurant, loading, createGenericReview, fetchRestaurantReviews } = useAppContext();
+    const { user } = useAuth();
+    const [restaurant, setRestaurant] = useState(null);
+    const [error, setError] = useState(null);
+    const [activeTab, setActiveTab] = useState('menu');
 
-  // Fetch restaurant details
-  useEffect(() => {
-    const getRestaurantDetails = async () => {
-      try {
-        const data = await fetchRestaurant(id);
-        setRestaurant(data);
-      } catch (err) {
-        console.error('Error fetching restaurant details:', err);
-        setError('No se pudo cargar la información del restaurante.');
-      }
-    };
+    // Image slider state
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-    getRestaurantDetails();
-  }, [id, fetchRestaurant]);
+    // Add these state variables for reviews
+    const [reviews, setReviews] = useState([]);
+    const [reviewsLoading, setReviewsLoading] = useState(false);
+    // Add these new state variables for calculated rating
+    const [averageRating, setAverageRating] = useState(0);
+    const [reviewCount, setReviewCount] = useState(0);
 
-  // Add this useEffect to fetch reviews and calculate average rating
-  useEffect(() => {
-    const getReviewsAndCalculateAverage = async () => {
-      try {
-        if (!id) return;
-        
-        setReviewsLoading(true);
-        const reviews = await fetchRestaurantReviews(id);
-        setReviews(reviews);
-        
-        // Calculate number of reviews
-        const count = reviews.length;
-        
-        // Calculate average rating
-        let sum = 0;
-        if (count > 0) {
-          sum = reviews.reduce((acc, review) => acc + review.rating, 0);
-          setAverageRating((sum / count).toFixed(1));
-          setReviewCount(count);
-        } else {
-          setAverageRating(0);
-          setReviewCount(0);
+    // Review form state
+    const [reviewRating, setReviewRating] = useState(5);
+    const [reviewComment, setReviewComment] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [reviewSuccess, setReviewSuccess] = useState(false);
+    const [reviewError, setReviewError] = useState(null);
+
+    // Fetch restaurant details
+    useEffect(() => {
+        const getRestaurantDetails = async () => {
+            try {
+                const data = await fetchRestaurant(id);
+                setRestaurant(data);
+            } catch (err) {
+                console.error('Error fetching restaurant details:', err);
+                setError('No se pudo cargar la información del restaurante.');
+            }
+        };
+
+        getRestaurantDetails();
+    }, [id, fetchRestaurant]);
+
+    // Add this useEffect to fetch reviews and calculate average rating
+    useEffect(() => {
+        const getReviewsAndCalculateAverage = async () => {
+            try {
+                if (!id) return;
+
+                setReviewsLoading(true);
+                const reviews = await fetchRestaurantReviews(id);
+                setReviews(reviews);
+
+                // Calculate number of reviews
+                const count = reviews.length;
+
+                // Calculate average rating
+                let sum = 0;
+                if (count > 0) {
+                    sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+                    setAverageRating((sum / count).toFixed(1));
+                    setReviewCount(count);
+                } else {
+                    setAverageRating(0);
+                    setReviewCount(0);
+                }
+
+            } catch (error) {
+                console.error('Error getting restaurant reviews:', error);
+                // Keep default values in case of error
+                setReviewCount(0);
+            } finally {
+                setReviewsLoading(false);
+            }
+        };
+
+        getReviewsAndCalculateAverage();
+    }, [id, fetchRestaurantReviews]);
+
+    // Handle review submission
+    const handleSubmitReview = async (e) => {
+        e.preventDefault();
+
+        if (!user) {
+            setReviewError('Debes iniciar sesión para dejar una reseña');
+            return;
         }
-        
-      } catch (error) {
-        console.error('Error getting restaurant reviews:', error);
-        // Keep default values in case of error
-        setReviewCount(0);
-      } finally {
-        setReviewsLoading(false);
-      }
+
+        try {
+            setIsSubmitting(true);
+            setReviewError(null);
+
+            // Make sure we're using the exact format expected by the API
+            const reviewData = {
+                userId: user.id,
+                rating: parseInt(reviewRating), // Ensure rating is a number
+                comment: reviewComment,
+                restaurantId: id
+            };
+
+            console.log('Sending review data:', reviewData); // For debugging
+
+            const result = await createGenericReview(reviewData);
+            console.log('Review creation result:', result);
+
+            // Update restaurant data with new review if available
+            if (result && result.updatedItem) {
+                setRestaurant(result.updatedItem);
+            }
+
+            // Refresh reviews and recalculate average
+            const updatedReviews = await fetchRestaurantReviews(id);
+            setReviews(updatedReviews);
+
+            // Recalculate average rating
+            const count = updatedReviews.length;
+            if (count > 0) {
+                const sum = updatedReviews.reduce((acc, review) => acc + review.rating, 0);
+                setAverageRating((sum / count).toFixed(1));
+                setReviewCount(count);
+            }
+
+            // Reset form
+            setReviewComment('');
+            setReviewRating(5);
+            setReviewSuccess(true);
+
+            // Hide success message after 3 seconds
+            setTimeout(() => {
+                setReviewSuccess(false);
+            }, 3000);
+
+        } catch (err) {
+            console.error('Error submitting review:', err);
+            setReviewError('No se pudo enviar la reseña. Por favor, inténtalo de nuevo.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    getReviewsAndCalculateAverage();
-  }, [id, fetchRestaurantReviews]);
+    const nextImage = () => {
+        if (restaurant.images && restaurant.images.length > 0) {
+            setCurrentImageIndex((prevIndex) => (prevIndex + 1) % restaurant.images.length);
+        }
+    };
 
-  // Handle review submission
-  const handleSubmitReview = async (e) => {
-    e.preventDefault();
-    
-    if (!user) {
-      setReviewError('Debes iniciar sesión para dejar una reseña');
-      return;
-    }
-    
-    try {
-      setIsSubmitting(true);
-      setReviewError(null);
-      
-      // Make sure we're using the exact format expected by the API
-      const reviewData = {
-        userId: user.id,
-        rating: parseInt(reviewRating), // Ensure rating is a number
-        comment: reviewComment,
-        restaurantId: id
-      };
-      
-      console.log('Sending review data:', reviewData); // For debugging
-      
-      const result = await createGenericReview(reviewData);
-      console.log('Review creation result:', result);
-      
-      // Update restaurant data with new review if available
-      if (result && result.updatedItem) {
-        setRestaurant(result.updatedItem);
-      }
-      
-      // Refresh reviews and recalculate average
-      const updatedReviews = await fetchRestaurantReviews(id);
-      setReviews(updatedReviews);
-      
-      // Recalculate average rating
-      const count = updatedReviews.length;
-      if (count > 0) {
-        const sum = updatedReviews.reduce((acc, review) => acc + review.rating, 0);
-        setAverageRating((sum / count).toFixed(1));
-        setReviewCount(count);
-      }
-      
-      // Reset form
-      setReviewComment('');
-      setReviewRating(5);
-      setReviewSuccess(true);
-      
-      // Hide success message after 3 seconds
-      setTimeout(() => {
-        setReviewSuccess(false);
-      }, 3000);
-      
-    } catch (err) {
-      console.error('Error submitting review:', err);
-      setReviewError('No se pudo enviar la reseña. Por favor, inténtalo de nuevo.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    const prevImage = () => {
+        if (restaurant.images && restaurant.images.length > 0) {
+            setCurrentImageIndex((prevIndex) => (prevIndex - 1 + restaurant.images.length) % restaurant.images.length);
+        }
+    };
 
-  if (loading?.restaurants) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
+    const currentImageUrl = restaurant?.images && restaurant.images.length > 0
+        ? restaurant.images[currentImageIndex]?.url
+        : restaurant?.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=1200';
 
-  if (error) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      </div>
-    );
-  }
+    // Format opening hours - handle both string and object formats
+    const formatOpeningHours = (hours) => {
+        if (!hours) return '12:00 - 23:00';
 
-  if (!restaurant) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center">
-          <p className="text-gray-500 text-lg">No se encontró el restaurante.</p>
-        </div>
-      </div>
-    );
-  }
+        // If hours is a string, return it directly
+        if (typeof hours === 'string') return hours;
 
-  // Get the main image
-  const mainImage = restaurant.images && restaurant.images.length > 0 
-    ? restaurant.images[0] 
-    : restaurant.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=1200';
+        // If hours is an object with days of the week, format it
+        if (typeof hours === 'object') {
+            return 'Lun-Dom: Horarios variables';
+        }
 
-  // Format opening hours - handle both string and object formats
-  const formatOpeningHours = (hours) => {
-    if (!hours) return '12:00 - 23:00';
-    
-    // If hours is a string, return it directly
-    if (typeof hours === 'string') return hours;
-    
-    // If hours is an object with days of the week, format it
-    if (typeof hours === 'object') {
-      return 'Lun-Dom: Horarios variables';
-    }
-    
-    return '12:00 - 23:00';
-  };
+        return '12:00 - 23:00';
+    };
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="mb-6">
-        <Link to="/restaurants" className="inline-flex items-center text-blue-600 hover:text-blue-800">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Volver a restaurantes
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          {/* Restaurant Images */}
-          <div className="bg-gray-200 rounded-lg overflow-hidden mb-6 h-96">
-            <img 
-              src={mainImage} 
-              alt={restaurant.name} 
-              className="w-full h-full object-cover"
-            />
-          </div>
-
-          {/* Restaurant Details */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{restaurant.name}</h1>
-            <div className="flex items-center text-gray-600 mb-4 flex-wrap">
-              <MapPin className="h-5 w-5 mr-1" />
-              <span>{restaurant.address}, {restaurant.city}</span>
-              <div className="mx-2">•</div>
-              <div className="flex items-center">
-                <Star className="h-5 w-5 text-yellow-500 mr-1" />
-                <span>{averageRating}</span>
-                <span className="ml-1">({reviewCount} reseñas)</span>
-              </div>
-              <div className="mx-2">•</div>
-              <div className="flex items-center">
-                <Clock className="h-5 w-5 mr-1" />
-                <span>{formatOpeningHours(restaurant.openingHours)}</span>
-              </div>
+    if (loading?.restaurants) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
             </div>
-            
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                    {error}
+                </div>
+            </div>
+        );
+    }
+
+    if (!restaurant) {
+        return (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                <div className="text-center">
+                    <p className="text-gray-500 text-lg">No se encontró el restaurante.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Acerca de este restaurante</h2>
-              <p className="text-gray-700">{restaurant.description}</p>
+                <Link to="/restaurants" className="inline-flex items-center text-blue-600 hover:text-blue-800">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver a restaurantes
+                </Link>
             </div>
-            
-            {/* Contact Information */}
-            <div className="border-t border-gray-200 pt-6 mb-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Información de contacto</h2>
-              <div className="space-y-3">
-                {restaurant.phone && (
-                  <div className="flex items-center">
-                    <Phone className="h-5 w-5 text-gray-500 mr-2" />
-                    <span>{restaurant.phone}</span>
-                  </div>
-                )}
-                {restaurant.website && (
-                  <div className="flex items-center">
-                    <Globe className="h-5 w-5 text-gray-500 mr-2" />
-                    <a href={restaurant.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                      {restaurant.website}
-                    </a>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Tabs for Menu, Reviews, etc. */}
-            <div className="border-t border-gray-200 pt-6">
-              <div className="flex border-b border-gray-200">
-                <button 
-                  className={`py-2 px-4 font-medium ${activeTab === 'menu' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                  onClick={() => setActiveTab('menu')}
-                >
-                  Menú
-                </button>
-                <button 
-                  className={`py-2 px-4 font-medium ${activeTab === 'reviews' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                  onClick={() => setActiveTab('reviews')}
-                >
-                  Reseñas ({reviews && reviews.length ? reviews.length : 0})
-                </button>
-                <button 
-                  className={`py-2 px-4 font-medium ${activeTab === 'photos' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                  onClick={() => setActiveTab('photos')}
-                >
-                  Fotos
-                </button>
-              </div>
-              
-              <div className="py-6">
-                {activeTab === 'menu' && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Nuestro Menú</h3>
-                    {restaurant.menu ? (
-                      <div className="space-y-6">
-                        {restaurant.menu.map((category, index) => (
-                          <div key={index}>
-                            <h4 className="text-md font-semibold text-gray-800 mb-3">{category.name}</h4>
-                            <div className="space-y-4">
-                              {category.items.map((item, itemIndex) => (
-                                <div key={itemIndex} className="flex justify-between">
-                                  <div>
-                                    <h5 className="font-medium">{item.name}</h5>
-                                    <p className="text-sm text-gray-600">{item.description}</p>
-                                  </div>
-                                  <span className="font-medium">€{item.price}</span>
-                                </div>
-                              ))}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2">
+                    {/* Restaurant Images */}
+                    <div className="bg-gray-200 rounded-lg overflow-hidden mb-6 h-96 relative">
+                        {restaurant.images && restaurant.images.length > 1 && (
+                            <>
+                                <button
+                                    onClick={prevImage}
+                                    className="absolute left-3 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-50 rounded-full p-2 hover:bg-opacity-70 z-10"
+                                >
+                                    <ChevronLeft className="h-6 w-6 text-gray-800" />
+                                </button>
+                                <button
+                                    onClick={nextImage}
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-50 rounded-full p-2 hover:bg-opacity-70 z-10"
+                                >
+                                    <ChevronRight className="h-6 w-6 text-gray-800" />
+                                </button>
+                            </>
+                        )}
+                        <img
+                            src={currentImageUrl}
+                            alt={restaurant.name}
+                            className="w-full h-full object-cover cursor-grab active:cursor-grabbing"
+                            onMouseDown={(e) => {
+                                const slider = e.currentTarget;
+                                let startX = e.clientX - slider.offsetLeft;
+                                let scrollLeft = slider.scrollLeft;
+
+                                function dragStart(e) {
+                                    startX = e.clientX - slider.offsetLeft;
+                                    scrollLeft = slider.scrollLeft;
+                                }
+
+                                function dragMove(e) {
+                                    const x = e.clientX - slider.offsetLeft;
+                                    const walk = (x - startX) * 1; //scroll-fast speed
+                                    slider.scrollLeft = scrollLeft - walk;
+                                }
+
+                                function dragEnd() {
+                                    slider.removeEventListener('mousemove', dragMove);
+                                    slider.removeEventListener('mouseup', dragEnd);
+                                    slider.removeEventListener('mouseleave', dragEnd);
+                                }
+
+                                slider.addEventListener('mousedown', dragStart);
+                                slider.addEventListener('mouseup', dragEnd);
+                                slider.addEventListener('mouseleave', dragEnd);
+                                slider.addEventListener('mousemove', dragMove);
+                            }}
+                        />
+                    </div>
+
+                    {/* Restaurant Details */}
+                    <div className="mb-8">
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2">{restaurant.name}</h1>
+                        <div className="flex items-center text-gray-600 mb-4 flex-wrap">
+                            <MapPin className="h-5 w-5 mr-1" />
+                            <span>{restaurant.address}, {restaurant.city}</span>
+                            <div className="mx-2">•</div>
+                            <div className="flex items-center">
+                                <Star className="h-5 w-5 text-yellow-500 mr-1" />
+                                <span>{averageRating}</span>
+                                <span className="ml-1">({reviewCount} reseñas)</span>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <Menu className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-500">Menú no disponible</p>
-                      </div>
-                    )}
-                  </div>
-                )}
+                            <div className="mx-2">•</div>
+                            <div className="flex items-center">
+                                <Clock className="h-5 w-5 mr-1" />
+                                <span>{formatOpeningHours(restaurant.openingHours)}</span>
+                            </div>
+                        </div>
+
+                        <div className="mb-6">
+                            <h2 className="text-xl font-semibold text-gray-900 mb-2">Acerca de este restaurante</h2>
+                            <p className="text-gray-700">{restaurant.description}</p>
+                        </div>
+
+                        {/* Contact Information */}
+                        <div className="border-t border-gray-200 pt-6 mb-6">
+                            <h2 className="text-xl font-semibold text-gray-900 mb-4">Información de contacto</h2>
+                            <div className="space-y-3">
+                                {restaurant.phone && (
+                                    <div className="flex items-center">
+                                        <Phone className="h-5 w-5 text-gray-500 mr-2" />
+                                        <span>{restaurant.phone}</span>
+                                    </div>
+                                )}
+                                {restaurant.website && (
+                                    <div className="flex items-center">
+                                        <Globe className="h-5 w-5 text-gray-500 mr-2" />
+                                        <a href={restaurant.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                            {restaurant.website}
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Tabs for Menu, Reviews, etc. */}
+                        <div className="border-t border-gray-200 pt-6">
+                            <div className="flex border-b border-gray-200">
+                                <button
+                                    className={`py-2 px-4 font-medium ${activeTab === 'menu' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                                    onClick={() => setActiveTab('menu')}
+                                >
+                                    Menú
+                                </button>
+                                <button
+                                    className={`py-2 px-4 font-medium ${activeTab === 'reviews' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                                    onClick={() => setActiveTab('reviews')}
+                                >
+                                    Reseñas ({reviews && reviews.length ? reviews.length : 0})
+                                </button>
+                                <button
+                                    className={`py-2 px-4 font-medium ${activeTab === 'photos' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                                    onClick={() => setActiveTab('photos')}
+                                >
+                                    Fotos
+                                </button>
+                            </div>
+
+                            <div className="py-6">
+                                {activeTab === 'menu' && (
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Nuestro Menú</h3>
+                                        {restaurant.menu ? (
+                                            <div className="space-y-6">
+                                                {restaurant.menu.map((category, index) => (
+                                                    <div key={index}>
+                                                        <h4 className="text-md font-semibold text-gray-800 mb-3">{category.name}</h4>
+                                                        <div className="space-y-4">
+                                                            {category.items.map((item, itemIndex) => (
+                                                                <div key={itemIndex} className="flex justify-between">
+                                                                    <div>
+                                                                        <h5 className="font-medium">{item.name}</h5>
+                                                                        <p className="text-sm text-gray-600">{item.description}</p>
+                                                                    </div>
+                                                                    <span className="font-medium">€{item.price}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8">
+                                                <Menu className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                                                <p className="text-gray-500">Menú no disponible</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                 
                 {activeTab === 'reviews' && (
                   <div>
